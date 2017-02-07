@@ -1,0 +1,14 @@
+================================================================================
+                                - BUGS - 
+================================================================================
+
+All current bugs can be found online at:
+
+    http://trac.assembla.com/fierce/report/1
+
+Known bugs:
+    - fierce dtd
+
+
+    --  unique IPs for Subprefix bruteforce
+      - segfault - yahoo.com - reverse ip 

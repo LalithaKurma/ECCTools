@@ -1,0 +1,10 @@
+    <!--  ARIN -->
+    <p>ARIN:</p>
+    <!-- <ARIN starttime="[% FILTER html %][% start %][% END %]" starttimestr="[% FILTER html %][% startstr %][% END %]" endtime="[% FILTER html %][% end %][% END %]" endtimestr="[% FILTER html %][% endstr %][% END %]" elapsedtime="[% FILTER html %][% elapsed %][% END %]">
+    -->
+    <ul>
+    [% FOREACH range IN result %]
+        <li>[% FILTER html %][% range.net_range %][% END %]</li>
+        <!--           <range iprange="[% FILTER html %][% range.net_range %][% END %]" nethandle="[% FILTER html %][% range.net_handle %][% END %]"/>-->
+    [% END %]
+    </ul>

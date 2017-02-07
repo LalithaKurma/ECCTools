@@ -1,0 +1,5 @@
+    <!--  Name Servers -->
+    <nameservers starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH node IN result %]
+        <node ip="[% node.ip %]" hostname="[% node.hostname %]" type="[% node.type %]" ttl="[% node.ttl %]"/>
+    [% END %]</nameservers>

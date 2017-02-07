@@ -1,0 +1,4 @@
+[% FOREACH ptr IN result %]
+    [% ptr.ip %] [% "\t" %] [% ptr.ptrdname %] [% "\t\t\t" %] [% ptr.hostname %]
+
+[% END %]

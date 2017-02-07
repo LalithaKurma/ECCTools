@@ -1,0 +1,8 @@
+<html>
+<head>
+<title>Fierce Scan</title>
+</head>
+
+<h1>Fierce Scan</h1>
+argument:[% FILTER html %][% args %][% END %] <br/>
+startscan:[% FILTER html %][% startstr %][% END %]<br/>

@@ -1,0 +1,9 @@
+    <!--  Find Nearby -->
+    <p>Find Nearby:</p>
+    <!-- <findnearby starttime="[% FILTER html %][% start %][% END %]" starttimestr="[% FILTER html %][% startstr %][% END %]" endtime="[% FILTER html %][% end %][% END %]" endtimestr="[% FILTER html %][% endstr %][% END %]" elapsedtime="[% FILTER html %][% elapsed %][% END %]"> -->
+    <ul>
+    [% FOREACH ptr IN result %]
+          <li>[% FILTER html %][% ptr.ip %][% END %]"</li>
+          <!-- hostname="[% FILTER html %][% ptr.hostname %][% END %]"/> -->
+    [% END %]
+    </ul>

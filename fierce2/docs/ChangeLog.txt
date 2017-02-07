@@ -1,0 +1,102 @@
+ChangeLog
+---
+1/02/09
+* Updated the README
+
+5/19/09
+* Added threading support and fully intregrated into fierce.
+* Added vhost template
+
+5/18/09
+* Merged vhost, prefix_bf and ext_bf to fierce
+
+3/16/09
+* Added Domain Vhost module
+
+3/6/09
+* Added findmx with threading
+
+3/5/09
+* Added more threading modules
+* Added AttackObj and refactored the old modules to use it
+* Added example scripts for testing
+
+3/4/09
+* Started making threading modules
+
+3/1/09
+* Added examples files (google.xml.yahoo.xml and yahoo-google.xml)
+* Added Test module to Makefile.PL to sure we can run the codebase properly
+* Fixed findmx bug where the records were not being printed to the xml
+* Fixed whois bug where the records were not being printed to the xml
+* Added initial subdomain bruteforce module, still needs to be incorporated.
+* Updated the pod documentation. Still needs more work.
+
+8/30/08
+* Fixed ZoneTransfer bug
+
+8/19/08
+* added html format output
+* added arin script
+
+6/04/08
+* initial setup for threads, redo output to only use the module_vars
+* adding from to nodes, so we can eventually know where each IP came from
+
+6/03/08
+* added writing to a file
+* adding start,end and elapsed times to every module
+* added printing in XML
+* added tcp_timeout and udp_timeout
+* Updated examples
+
+6/01/08
+* adding start,end and elapsed times
+* added verbose and debug options
+* added -no to not perform certain actions
+* added starting and ending tags to output for normal and xml
+
+5/26/08
+* Fixed WhoisLookup.pm for undefined item
+
+5/25/08
+* Output fully moved to use Template::Toolkit 
+* Added all the template files needed for Template::Toolkit output
+* Updated the fierce script to use Template::Toolkit output
+* Added INSTALL file
+
+12/25/07
+* Refactored Modules in preparation for adding XML 
+* Fixed Getopt bug in fierce for -ext and -prefix
+
+12/24/07
+* Added ExtensionBruteForceDNS.pm which performs a BruteForce attack against
+the extension instead of the the prefix.
+* Updated Fierce.pl to use ExtensionBruteForceDNS.pm
+
+12/23/07
+* Added AliveHosts.pm which performs a scan of the randomized ports using
+a specific timeout
+* Added WhoisLookup.pm which performs a whois lookup and returns the
+network related information
+* Updated Fierce.pl to use WhoisLookup.pm
+* Located bug in Net-Whois-ARIN, but I have already have a fix. 
+http://rt.cpan.org/Ticket/Display.html?id=31839
+
+12/22/07
+* Added checking for wildcard before bruteforce is attempted
+* Updated BruteForce to new method. Fierce performs a bruteforce
+until the "prefix.domain" no longer resolves, but now it continues 
+from the the last resolving (prefix num) until the 
+(prefix max_bruteforce_num)
+* Added Fierce::Ipange::PingScan module and added tests for it
+* Updated Makefile.PL to include manpage and the required modules
+* Updated fierce.pl help information
+* Fixed GetOpt Long issues in fierce.pl
+* Updated print_version header info
+* Fixed Bug in CheckWildCard.pm with ZoneTransfer output and
+updated the tests
+* Started the manpage for fierce.pl using pod
+
+12/21/07
+* Setup the OO framework and various things for building 2.0

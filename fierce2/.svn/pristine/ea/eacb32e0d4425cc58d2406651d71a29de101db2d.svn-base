@@ -1,0 +1,52 @@
+# $Id$
+package NameServers;
+{
+    use Object::InsideOut qw(AttackObj);
+    use Fierce::Base;
+    use Net::DNS;
+    use Socket;
+    my @result : Field : Arg(result) : All(result) : Type(List(Node));
+
+    # execute: Domain Net::DNS::Resolver -> NameServers
+    # perform zone transfer domain
+    sub execute {
+        my ( $self, $domain_obj, $base ) = @_;
+
+        $self->_setup();
+
+        my $domain = $domain_obj->domain;
+        my $res    = $base->new_dns_resolver();
+        my @data;
+
+        my ( @zone, @output );
+
+        my $query = $res->query( $domain, 'NS' );
+        if ( defined($query) ) {
+            foreach my $rr ( grep { $_->type eq 'NS' } $query->answer ) {
+                my $hostname = $rr->nsdname;
+                my $answer = $base->lookup_hostname( $res, "$hostname." );
+                next if ( !defined($answer) or !defined( $answer->address ) );
+		if ( $base->verbose == 1 ) {
+			print "Found Node! (" . $answer->address . " / " . $answer->name . ") based on a NS search of: $domain.\n";
+		}
+                push(
+                    @data,
+                    Node->new(
+                        ip       => $answer->address,
+                        hostname => $answer->name,
+                        type     => $answer->type,
+                        ttl      => $answer->ttl,
+                        from     => 'ns',
+                    )
+                );
+                $base->add_nameserver($hostname);
+            }
+        }
+
+        $self->result(@data);
+        $self->_complete();
+        return $self;
+    }
+}
+
+1;

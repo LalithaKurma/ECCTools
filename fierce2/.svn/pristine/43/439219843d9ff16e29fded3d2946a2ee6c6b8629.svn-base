@@ -1,0 +1,18 @@
+    <zonetransfers starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH zone_transfer IN result %]
+    <zonetransfer nameserver="[% zone_transfer.name_server %]" bool="[% zone_transfer.bool %]"> 
+        [% IF zone_transfer.bool == 1 %] 
+        <rawoutput>
+        [% FOREACH output IN zone_transfer.raw_output %]
+            [% output %]
+        [% END %]
+        </rawoutput>
+ 
+        <nodes>
+        [% FOREACH node IN zone_transfer.nodes %]
+            <node ip="[% node.ip %]" hostname="[% node.hostname %]" type="[% node.type %]" ttl="[% node.ttl %]" />
+        [% END %]
+        </nodes>
+
+        [% END %]</zonetransfer>
+    [% END %]</zonetransfers>

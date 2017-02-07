@@ -1,0 +1,6 @@
+    <!--  Find Nearby -->
+    <findnearby starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH ptr IN result %]
+           <ptr ip="[% ptr.ip %]" hostname="[% ptr.hostname %]" ptrdname="[% ptr.ptrdname %]"/>
+    [% END %]</findnearby>
+

@@ -1,0 +1,5 @@
+[% FOREACH zone_transfer IN result %]
+    [% zone_transfer.name_server %] [% IF zone_transfer.bool == 1 %] [% "\t" %] Success! [% ELSE %] [% "\t" %] Failed [% END %]
+
+[% IF zone_transfer.bool == 1 %]  [% zone_transfer.raw_output %] [% "\n" %] [% END %]
+[% END %]

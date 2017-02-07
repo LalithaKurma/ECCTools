@@ -1,0 +1,108 @@
+# $Id$
+package tHostnameLookups;
+{
+    use Object::InsideOut qw(:SHARED AttackObj);
+    use Socket;
+    use Fierce::Domain;
+    use Fierce::Base;
+    use Thread::Queue;
+
+    # list of cname found during prefix bruteforce
+    my @prefix_cnames : Field : Arg(prefix_cnames) : Get(prefix_cnames) :
+        Type(Array);
+
+    # max number of interation to use for bruteforce attempts
+    my @max_lookups : Field : Arg(max_lookups) : All(max_lookups) :
+        Default(10);
+
+    # Base Configuration infomation
+    my @base : Field : Arg(base) : All(base) : Type(Base);
+
+    ### populated parameters
+    # list of nodes found
+    my @result : Field : Arg(result) : All(result) : Type(List(Node)) :
+        Default([]);
+
+    # domain object from execute
+    my @domain_obj : Field : Arg(domain_obj) : All(domain_obj) : Type(Domain);
+
+    # initialize the base obj
+    sub _init : Init {
+        my ($self) = @_;
+
+        # Set default if needed
+        if ( !exists( $base[$$self] ) ) {
+            $self->set( \@base, Base->new() );
+        }
+    }
+
+    # execute: Domain -> Fierce::Domain::tRevereLookup
+    # kicks off the dns bruteforce worker threads
+    sub execute {
+        my ( $self, $domain_obj ) = @_;
+
+        $self->_setup;
+        $self->domain_obj($domain_obj);
+        my $base      = $self->base;
+        my @hostnames = @{ $self->prefix_cnames };
+        push( @hostnames, $domain_obj->domain );
+
+        my $stream = Thread::Queue->new();
+
+        foreach my $h (@hostnames) {
+            chomp($h);
+            $stream->enqueue($h);
+        }
+        foreach ( 1 .. $base->threads ) {
+            threads->new( \&thr_work, $self, $stream );
+            $stream->enqueue(undef);    # for each thread
+        }
+        foreach my $thr ( threads->list() ) {
+            $thr->join();
+        }
+
+        $self->_complete;
+        return $self;
+    }
+
+    # execute: Domain -> HostnameLookups
+    # perform forward lookup
+    sub thr_work {
+        my ( $self, $q ) = @_;
+        my $domain      = $self->domain_obj->domain;
+        my $max_lookups = $self->max_lookups;
+        my $base        = $base[$$self];
+        my $res         = $base->new_dns_resolver();
+
+        #print( 'Thread = ', threads->tid(), "\n" );
+        sleep( $base->delay() );
+        while ( my $h = $q->dequeue() ) {
+            chomp($h);
+            my $loop = 1;
+            while ( $loop <= $max_lookups ) {
+            	print "Searching for $h. ($loop out of $max_lookups)\n" if $base->verbose == 1;
+                my $answer = $base->lookup_hostname( $res, "$h." );
+                if ( defined $answer
+                    and $base->isinlist( $result[$$self], $answer->address )
+                    == 0 )
+                {
+                	print "Found Node! (" . $answer->address . " / " . $answer->name . ") based on a search of: $h.\n";
+                    my $node = Node->new(
+                        hostname => $answer->name,
+                        ip       => $answer->address,
+                        type     => $answer->type,
+                        ttl      => $answer->ttl,
+                        from     => 'Hostname Lookup'
+                    );
+                    push( @{ $result[$$self] }, $node );
+                }
+                $loop++;
+            }
+
+            # Let others run
+            threads->yield();
+        }
+    }
+}
+
+1;

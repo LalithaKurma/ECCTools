@@ -1,0 +1,169 @@
+<!--  args=" -dns google.com -format xml -output google.xml -prefix simple" startscan="1279503970" startscanstr="Sun Jul 18 21:46:10 2010" fversion="2.0beta-r402" xmlversion="1.0" !-->
+<!ELEMENT fiercescan (domainscan+,endscan)>
+<!ATTLIST fiercescan args CDATA #REQUIRED>
+<!ATTLIST fiercescan startscan CDATA #REQUIRED>
+<!ATTLIST fiercescan startscanstr CDATA #REQUIRED>
+<!ATTLIST fiercescan xmlversion CDATA #REQUIRED>
+<!ATTLIST fiercescan fversion CDATA #REQUIRED>
+
+<!ELEMENT endscan EMPTY>
+    <!ATTLIST endscan endtime CDATA #REQUIRED>
+    <!ATTLIST endscan endtimestr CDATA #REQUIRED>
+    <!ATTLIST endscan elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT endtimedetails EMPTY>
+    <!ATTLIST endtimedetails endtime CDATA #REQUIRED>
+    <!ATTLIST endtimedetails endtimestr CDATA #REQUIRED>
+    <!ATTLIST endtimedetails elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT domainscan (nameservers,arin,zonetransfers,wildcard,bruteforce,findmx,whois,hostnamelookups,findnearby,endtimedetails)>
+<!ATTLIST domainscan domain CDATA #REQUIRED>
+<!ATTLIST domainscan ip CDATA #REQUIRED>
+<!ATTLIST domainscan startscan CDATA #REQUIRED>
+<!ATTLIST domainscan startscanstr CDATA #REQUIRED>
+
+
+<!ELEMENT findmx (mx*)>
+    <!ATTLIST findmx starttime CDATA #REQUIRED>
+    <!ATTLIST findmx starttimestr CDATA #REQUIRED>
+    <!ATTLIST findmx endtime CDATA #REQUIRED>
+    <!ATTLIST findmx endtimestr CDATA #REQUIRED>
+    <!ATTLIST findmx elapsedtime CDATA #REQUIRED>
+
+
+<!ELEMENT arin (net_handle*)>
+    <!ATTLIST arin query CDATA #REQUIRED>
+    <!ATTLIST arin starttime CDATA #REQUIRED>
+    <!ATTLIST arin starttimestr CDATA #REQUIRED>
+    <!ATTLIST arin endtime CDATA #REQUIRED>
+    <!ATTLIST arin endtimestr CDATA #REQUIRED>
+    <!ATTLIST arin elapsedtime CDATA #REQUIRED>
+
+
+<!ELEMENT net_handle (cust_name?,address?,city?,state_prov?,zip_code?,country?,cidr?,net_type?,comment?,reg_date?,updated?,rtech_handle?,rtech_name?,rtech_phone?,rtech_email?,org_abuse_handle?,org_abuse_name?,org_abuse_phone?,org_abuse_email?,org_noc_handle?,org_noc_name?,org_noc_phone?,org_noc_email?,org_tech_handle?,org_tech_name?,org_tech_phone?,org_tech_email?)>
+    <!ATTLIST net_handle iprange CDATA #REQUIRED>
+    <!ATTLIST net_handle nethandle CDATA #REQUIRED>
+
+<!ELEMENT cust_name ANY>
+<!ELEMENT address ANY>
+<!ELEMENT city ANY>
+<!ELEMENT state_prov ANY>
+<!ELEMENT zip_code ANY>
+<!ELEMENT country ANY>
+<!ELEMENT cidr ANY>
+<!ELEMENT net_type ANY>
+<!ELEMENT comment ANY>
+<!ELEMENT reg_date ANY>
+<!ELEMENT updated ANY>
+<!ELEMENT rtech_handle ANY>
+<!ELEMENT rtech_name ANY>
+<!ELEMENT rtech_phone ANY>
+<!ELEMENT rtech_email ANY>
+
+<!ELEMENT org_abuse_handle ANY>
+<!ELEMENT org_abuse_name ANY>
+<!ELEMENT org_abuse_phone ANY>
+<!ELEMENT org_abuse_email ANY>
+<!ELEMENT org_noc_handle ANY>
+<!ELEMENT org_noc_name ANY>
+<!ELEMENT org_noc_phone ANY>
+<!ELEMENT org_noc_email ANY>
+<!ELEMENT org_tech_handle ANY>
+<!ELEMENT org_tech_name ANY>
+<!ELEMENT org_tech_phone ANY>
+<!ELEMENT org_tech_email ANY>
+
+
+
+<!ELEMENT zonetransfers (zonetransfer*)>
+    <!ATTLIST zonetransfers starttime CDATA #REQUIRED>
+    <!ATTLIST zonetransfers starttimestr CDATA #REQUIRED>
+    <!ATTLIST zonetransfers endtime CDATA #REQUIRED>
+    <!ATTLIST zonetransfers endtimestr CDATA #REQUIRED>
+    <!ATTLIST zonetransfers elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT whois (range*)>
+    <!ATTLIST whois starttime CDATA #REQUIRED>
+    <!ATTLIST whois starttimestr CDATA #REQUIRED>
+    <!ATTLIST whois endtime CDATA #REQUIRED>
+    <!ATTLIST whois endtimestr CDATA #REQUIRED>
+    <!ATTLIST whois elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT hostnamelookups (node*)>
+    <!ATTLIST hostnamelookups starttime CDATA #REQUIRED>
+    <!ATTLIST hostnamelookups starttimestr CDATA #REQUIRED>
+    <!ATTLIST hostnamelookups endtime CDATA #REQUIRED>
+    <!ATTLIST hostnamelookups endtimestr CDATA #REQUIRED>
+    <!ATTLIST hostnamelookups elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT subdomainbruteforce (node*)>
+    <!ATTLIST subdomainbruteforce starttime CDATA #REQUIRED>
+    <!ATTLIST subdomainbruteforce starttimestr CDATA #REQUIRED>
+    <!ATTLIST subdomainbruteforce endtime CDATA #REQUIRED>
+    <!ATTLIST subdomainbruteforce endtimestr CDATA #REQUIRED>
+    <!ATTLIST subdomainbruteforce elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT bruteforce (node*)>
+    <!ATTLIST bruteforce starttime CDATA #REQUIRED>
+    <!ATTLIST bruteforce starttimestr CDATA #REQUIRED>
+    <!ATTLIST bruteforce endtime CDATA #REQUIRED>
+    <!ATTLIST bruteforce endtimestr CDATA #REQUIRED>
+    <!ATTLIST bruteforce elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT tldbruteforcedns (node*)>
+    <!ATTLIST tldbruteforcedns starttime CDATA #REQUIRED>
+    <!ATTLIST tldbruteforcedns starttimestr CDATA #REQUIRED>
+    <!ATTLIST tldbruteforcedns endtime CDATA #REQUIRED>
+    <!ATTLIST tldbruteforcedns endtimestr CDATA #REQUIRED>
+    <!ATTLIST tldbruteforcedns elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT nameservers (node*)>
+    <!ATTLIST nameservers starttime CDATA #REQUIRED>
+    <!ATTLIST nameservers starttimestr CDATA #REQUIRED>
+    <!ATTLIST nameservers endtime CDATA #REQUIRED>
+    <!ATTLIST nameservers endtimestr CDATA #REQUIRED>
+    <!ATTLIST nameservers elapsedtime CDATA #REQUIRED>
+
+
+<!ELEMENT wildcard (node*)>
+    <!ATTLIST wildcard starttime CDATA #REQUIRED>
+    <!ATTLIST wildcard starttimestr CDATA #REQUIRED>
+    <!ATTLIST wildcard endtime CDATA #REQUIRED>
+    <!ATTLIST wildcard endtimestr CDATA #REQUIRED>
+    <!ATTLIST wildcard elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT vhost (node*)>
+    <!ATTLIST vhost starttime CDATA #REQUIRED>
+    <!ATTLIST vhost starttimestr CDATA #REQUIRED>
+    <!ATTLIST vhost endtime CDATA #REQUIRED>
+    <!ATTLIST vhost endtimestr CDATA #REQUIRED>
+    <!ATTLIST vhost elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT findnearby (node*)>
+    <!ATTLIST findnearby starttime CDATA #REQUIRED>
+    <!ATTLIST findnearby starttimestr CDATA #REQUIRED>
+    <!ATTLIST findnearby endtime CDATA #REQUIRED>
+    <!ATTLIST findnearby endtimestr CDATA #REQUIRED>
+    <!ATTLIST findnearby elapsedtime CDATA #REQUIRED>
+
+<!ELEMENT range EMPTY>
+    <!ATTLIST range nethandle CDATA #REQUIRED>
+    <!ATTLIST range iprange CDATA #REQUIRED>
+ 
+<!ELEMENT zonetransfer ANY>
+    <!ATTLIST zonetransfer nameserver CDATA #REQUIRED>
+    <!ATTLIST zonetransfer bool CDATA #REQUIRED>
+ 
+<!ELEMENT mx EMPTY>
+    <!ATTLIST mx preference CDATA #REQUIRED>
+    <!ATTLIST mx exchange CDATA #REQUIRED>
+ 
+<!ELEMENT node EMPTY>
+    <!ATTLIST node ip CDATA #REQUIRED>
+    <!ATTLIST node hostname CDATA #REQUIRED>
+    <!ATTLIST node type CDATA #REQUIRED>
+    <!ATTLIST node ttl CDATA #REQUIRED>
+
+<!ENTITY copyright "Copyright 2007">
+<!ENTITY license "GPL v2">
+<!ENTITY authors "RSnake h@ckers.org and Jabra jabra@spl0it.org">

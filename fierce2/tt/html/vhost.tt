@@ -1,0 +1,8 @@
+    <!--  Virtual Hosts -->
+    <p>Virtual Hosts:</p>
+    <ul>
+    [% FOREACH node IN result %]
+          <li>[% FILTER html %][% node.ip %][% END %]"</li>
+          <!-- hostname="[% FILTER html %][% node.hostname %][% END %]"/> -->
+    [% END %]
+    </ul>

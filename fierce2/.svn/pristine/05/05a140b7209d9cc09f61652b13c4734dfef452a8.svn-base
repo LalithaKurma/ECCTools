@@ -1,0 +1,6 @@
+[% FOREACH range IN result %]
+    NetRange [% "\t\t" %] [% range.net_range %]
+    
+    NetHandle [% "\t\t" %] [% range.net_handle %]
+    
+[% END %]

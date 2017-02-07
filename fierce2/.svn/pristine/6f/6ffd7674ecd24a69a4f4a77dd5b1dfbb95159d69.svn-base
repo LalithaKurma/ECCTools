@@ -1,0 +1,4 @@
+[% FOREACH node IN result %]
+    [% node.preference %] [% node.exchange %]
+
+[% END %]

@@ -1,0 +1,81 @@
+<html>
+<head>
+<title>Fierce Scan</title>
+</head>
+
+<h1>Fierce Scan</h1>
+argument: -dns thisisjustfortestingfierce.com -format html <br/>
+startscan:1219123054<br/>
+<h3>Domain Scan:    thisisjustfortestingfierce.com</h3>
+<p>Scan Start Time: Tue Aug 19 01:17:34 2008<p>
+<p>Scan End Time:   Tue Aug 19 01:17:34 2008</p>
+<p>Scan Elapsed Time: 3</p>
+<p></p>
+       <!--  Name Servers -->
+    <p>Name Servers:</p>
+    <!-- <nameservers starttime="1219123054" starttimestr="Tue Aug 19 01:17:34 2008" endtime="1219123054" endtimestr="Tue Aug 19 01:17:34 2008" elapsedtime="0">
+    -->
+    <ul>
+        </ul>
+   
+       <p>Zone Transfer:</p>
+    <!-- <zonetransfers starttime="1219123054" starttimestr="Tue Aug 19 01:17:34 2008" endtimestr="1219123054" endtimestr="Tue Aug 19 01:17:34 2008" elapsedtime="0"> -->
+    <ul>
+    </ul>
+
+   
+       <!--  Prefix Brute Force DNS -->
+    <p>BruteForce DNS:</p>
+    <!-- <bruteforce starttime="1219123054" starttimestr="Tue Aug 19 01:17:34 2008" endtime="1219123056" endtimestr="Tue Aug 19 01:17:36 2008" elapsedtime="2"> -->
+    <ul>
+              <li>127.0.4.1"</li>
+          <!-- hostname="www.thisisjustfortestingfierce.com"/> -->
+              <li>127.0.5.1"</li>
+          <!-- hostname="smtp.thisisjustfortestingfierce.com"/> -->
+        </ul>
+   
+       <!--  Extension Brute Force DNS -->
+    <p>Extension Brute Force DNS:</p>
+    <!--
+    <extbruteforce starttime="1219123056" starttimestr="Tue Aug 19 01:17:36 2008" endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="1">
+    -->
+    <ul>
+            <li>127.0.3.1</li>
+        <!-- " hostname="thisisjustfortestingfierce.com"/> -->
+        </ul>
+    
+       <!--  Find MX Records -->
+    <p>Find MX Records:</p>
+    <!-- <findmx starttime="1219123057" starttimestr="Tue Aug 19 01:17:37 2008" endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="0">
+    -->
+    <ul>
+        </ul>
+
+       <!--  Check for Wildcards -->
+    <p>Check for Wildcards: </p>
+    <!-- <wildcard starttime="1219123057" starttimestr="Tue Aug 19 01:17:37 2008" endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="0">
+    -->
+    <ul>
+        </ul>
+   
+       <!--  Whois -->
+    <p>Whois:</p>
+    <!-- <whois starttime="1219123057" starttimestr="Tue Aug 19 01:17:37 2008" endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="0">
+    -->
+    <ul>
+            <li>undefined</li>
+        <!--           <range iprange="undefined" cidr="undefined" nethandle="undefined"/>-->
+        </ul>
+   
+       <!--  Reverse Lookup -->
+    <p>Reverse Lookup</p>
+    <!--     <reverselookup starttime="1219123057" starttimestr="Tue Aug 19 01:17:37 2008" endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="0">
+    -->
+    <ul>
+            <li>127.0.3.1</li>
+        <!-- thisisjustfortestingfierce.com"/>-->
+        </ul>
+
+<!-- <endscan endtime="1219123057" endtimestr="Tue Aug 19 01:17:37 2008" elapsedtime="3"/></fiercescan>-->
+</html>
+

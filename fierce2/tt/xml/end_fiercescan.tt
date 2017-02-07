@@ -1,0 +1,2 @@
+<endscan endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]"/>
+</fiercescan>

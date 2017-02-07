@@ -1,0 +1,88 @@
+use threads;
+use threads::shared;
+
+# $Id: tFindMX.pm 320 2010-01-02 22:57:53Z jabra $
+package tFindMX;
+{
+    use Object::InsideOut qw(:SHARED AttackObj);
+    use Fierce::Base;
+    use Socket;
+    use Net::DNS;
+    use Thread::Queue;
+
+    ### required parameters
+    # none
+
+    ### optional parameters
+    # Base configuration information
+    my @base : Field : Arg(base) : Get(base) : Type(Base);
+
+    ### populated parameters
+    # list of nodes found
+    my @result : Field : Arg(result) : All(result) : Type(List(FindMXResult))
+        : Default([]);
+
+    # domain object from execute
+    my @domain_obj : Field : Arg(domain_obj) : All(domain_obj) : Type(Domain);
+
+    # initialize the base obj
+    sub _init : Init {
+        my ($self) = @_;
+
+        # Set default if needed
+        if ( !exists( $base[$$self] ) ) {
+            $self->set( \@base, Base->new() );
+        }
+    }
+
+    # execute: Domain Net::DNS(resolver) -> tFindMX
+    # find all mx records for a domain
+    # side effect: adds the list of mx records to result
+    sub execute {
+        my ( $self, $domain_obj, $net_dns_resolver ) = @_;
+
+        $self->_setup;
+        $self->domain_obj($domain_obj);
+
+        my $res = $net_dns_resolver;
+        my @mx = mx( $res, $domain_obj->domain );
+        if (@mx) {
+            my $stream = Thread::Queue->new();
+
+            foreach my $rr (@mx) {
+                $stream->enqueue( $rr->preference . "," . $rr->exchange );
+            }
+            my $base = $self->base;
+            foreach ( 1 .. $base->threads ) {
+                threads->new( \&thr_work, $self, $stream );
+                $stream->enqueue(undef);    # for each thread
+            }
+            foreach my $thr ( threads->list() ) {
+                $thr->join();
+            }
+        }
+
+        $self->_complete;
+        return $self;
+    }
+
+    sub thr_work {
+        my ( $self, $q ) = @_;
+
+        #print( 'Thread = ', threads->tid(), "\n" );
+
+        while ( my $rr = $q->dequeue() ) {
+            my ( $preference, $exchange ) = split( /,/, $rr );
+            my $findmx_result = FindMXResult->new(
+                preference => $preference,
+                exchange   => $exchange
+            );
+            push( @{ $result[$$self] }, $findmx_result );
+
+            # Let others run
+            threads->yield();
+        }
+    }
+}
+
+1;

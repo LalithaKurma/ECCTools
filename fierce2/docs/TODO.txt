@@ -1,0 +1,17 @@
+================================================================================
+                                - TODO - 
+================================================================================
+
+All current tasks can be found online at:
+
+    http://trac.assembla.com/fierce/report/1
+
+Short Term:
+* Add more documentation to the code
+* Update the manpage
+* Add a documentation for adding a new module
+
+Long Term:
+* Windows/Cygwin Support
+* IPv6
+* Finish XML

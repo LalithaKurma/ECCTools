@@ -1,0 +1,11 @@
+    <!--  TLD Brute Force -->
+    <p>TLD Brute Force DNS:</p>
+    <!--
+    <tldbruteforce starttime="[% FILTER html %][% start %][% END %]" starttimestr="[% FILTER html %][% startstr %][% END %]" endtime="[% FILTER html %][% end %][% END %]" endtimestr="[% FILTER html %][% endstr %][% END %]" elapsedtime="[% FILTER html %][% elapsed %][% END %]">
+    -->
+    <ul>
+    [% FOREACH node IN result %]
+        <li>[% FILTER html %][% node.ip %][% END %]</li>
+        <!-- " hostname="[% FILTER html %][% node.hostname %][% END %]"/> -->
+    [% END %]
+    </ul>

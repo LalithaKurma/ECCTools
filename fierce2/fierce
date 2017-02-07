@@ -1,0 +1,1469 @@
+#!/usr/bin/perl -w
+#########################################
+#
+# Fierce v2.0
+# $Id: fierce 250 2009-11-08 22:56:02Z jabra $
+#
+#########################################
+
+use Config;
+use threads;
+use threads::shared;
+use Thread::Queue;
+use strict;
+eval { require Fierce::Base };
+if ($@) {
+    print "Error: Failed to load Fierce::Base\n";
+    print "Read the INSTALL file to properly install fierce v2\n";
+    exit 1;
+}
+use Template;
+use Net::CIDR ':all';
+use Fierce::Base;
+use Fierce::Domain;
+use Fierce::Domain::NameServers;
+use Fierce::Domain::tARIN;
+use Fierce::Domain::tSubdomainBruteForce;
+use Fierce::Domain::ZoneTransfer;
+use Fierce::Domain::tBruteForceDNS;
+use Fierce::Domain::tCheckWildCard;
+use Fierce::Domain::tHostnameLookups;
+use Fierce::Domain::tFindMX;
+use Fierce::Domain::WhoisLookup;
+use Fierce::Domain::tVhost;
+use Fierce::Domain::tTLDBruteForce;
+use Fierce::IPrange;
+use Fierce::IPrange::tFindNearby;
+
+use Getopt::Long;
+use vars qw( $PROG );
+( $PROG = $0 ) =~ s/^.*[\/\\]//;    # Truncate calling path from the prog name
+my $rev = '$Revision: 420 $';
+$rev =~ s/^\$Revision: | \$$//g;
+my $fversion   = '2.0-r' . $rev;                      # fierce version
+my $furl       = 'http://trac.assembla.com/fierce';
+my $xmlversion = '1.0';                               # xml version
+my %options;
+my ( @dns_names,   @name_servers );
+my ( @prefix_list, @subdomain_list, @tld_list );
+my ( $log_file,    $filename, $thread_support );
+my $port = 53, my $tcp_timeout = 10;
+my $udp_timeout    = 5;
+my $proto          = undef;
+my $delay          = 3;
+my $threads        = 5;
+my $max_bruteforce = 5;
+my $max_lookups    = 10;
+my $format         = 'txt';
+my $verbose        = 0;
+my $debug          = 0;
+my $no             = 'subbf tldbf vhosts';
+my $wide           = 0;
+my $traverse       = 10;
+my $search         = '';
+my $pattern        = 0;
+my $wildc_stop     = 0;
+
+## ignore all errors while trying to load up thead stuff
+BEGIN {
+    if ( !$Config{useithreads} || $] < 5.008 ) {
+        print("1..0 # Skip Threads not supported\n");
+        exit(0);
+    }
+}
+
+## handle only header output calls
+sub header_output {
+    my ($str) = @_;
+    $str = validate($str);
+    if ( $format =~ /all/i and $options{output} ) {
+        print FILE_TXT $str;
+    }
+    elsif ( $format =~ /txt/i and $options{output} ) {
+        print FILE $str;
+    }
+    else { }
+
+    unless ( $format =~ /xml|html|all/i and !$options{output} ) {
+        print $str;
+    }
+}
+
+## validate the html
+sub htmlvalidate {
+    my ($input) = @_;
+    my $output = $input;
+    if ( $output =~ /\w+/ or $output =~ /\S+/ or $output =~ /\s+/ ) {
+        $output =~ s/</&lt;/g;
+        $output =~ s/>/&gt;/g;
+        $output =~ s/&/&amp;/g;
+    }
+    return $output;
+}
+
+## validate the output with regards to template toolkit
+sub validate {
+    my ($input) = @_;
+    my $output = $input;
+    if ( $output =~ /\w+/ or $output =~ /\S+/ or $output =~ /\s+/ ) {
+        $output =~ s/%//g;
+    }
+    return $output;
+}
+
+## display help information and exit
+sub help {
+    print "$PROG $fversion ( $furl )
+Usage: perl $PROG {target options} [OPTIONS]
+TARGET OPTIONS:
+  -dns [dns name(s) or file]   The domain(s) you would like scanned.
+                               Single domain, Multiple domains (Comma seperated)
+                               Also, supports file input (one domain per line) 
+  -range [111.222.333.1-100]   Scan an internal IP range (must be combined with 
+                               -dnsservers).  Note, that this does not support a pattern
+                               and will simply output anything it finds. 
+                               Singe range, Multiple ranges (Comma separated)
+                               Also, supports file input (one range per line)
+
+GENERAL OPTIONS: 
+  -format [type]               Output format [txt || xml || html || all] 
+  -output [file]               Output file
+  -template [dir]              Template Directory
+  -arin [\"query\"]              ARIN Query (default uses domain, without extension)
+  -prefix [prefix file|URL]    Prefix file or URL for bruteforce attack
+  -maxbruteforce [int]         Max number concatted onto prefix (default 5)
+  -maxlookups [int]            Max number hostname lookups (default 10)
+  -tld [file|URL]              TLD file or URL for bruteforce
+  -subdomain [file|URL]        Subdomain file or URL for subdomains bruteforce
+  -dnsservers [dns server or file]     
+                               Use particular DNS server(s) for hostname lookups.
+                               (Single domain, Multiple domains (Comma seperated)
+                               or File list(one domain per line) )
+  -ztstop                      Stop scan if Zone Transfer works
+  -wildcstop                   Don't perform bruteforcing if a Wildcard is found                
+  -all                         Perform every test.
+  -only   [option(s)]          Only perform (comma seperated)
+  -no     [option(s)]          Do not perform (comma seperated)
+          arin                    ARIN lookup
+          zt                      Zone Transfer
+          wildc                   Check for Wild Card
+          prebf                   Prefix Brute Force
+          subbf                   Subdomain Brute Force (default off)
+          tldbf                   TLD Brute Force (default off)
+          vhost                   Vhost Hosts (default off)
+          findmx                  Find MX Records
+          whois                   Whois Lookup
+          hlookups                Hostname Lookups
+          nearby                  Find Nearby Hosts
+  -threads [int]               Number of threads (default 5 threads)
+  -port [int]                  Port to use for testing
+  -delay [int]                 Number of seconds to delay (default 3 secs)
+  -proto [udp|tcp]             Protocol to use for DNS requests (default udp)
+  -tcptimeout [int]            Specify a different TCP timeout (default 10 secs)  
+  -udptimeout [int]            Specify a different UDP timeout (default 5 secs)  
+  -search [comma seperated]    Search list based on the PTR names when performing lookups.
+  -traverse [int]              Number of IPs to search at once betwen 0 and 255 (default 10)
+  -wide                        Scan the entire class C after finding any matching
+                               hostnames in that class C.  
+      -debug                   Debug option 
+  -v  -verbose                 Verbose option 
+  -h  -help                    This help screen.
+      -version                 Output the version number.
+EXAMPLES:
+  perl $PROG -dns example.com -prefix hosts.txt    
+  perl $PROG -dns example.com -prefix http://mywebsite.com/prefix.txt -wide
+    
+Type 'man $PROG' for more information\n\n";
+    exit;
+}
+
+## display version information and exit
+sub print_version {
+    print "$PROG Version $fversion\n";
+    exit;
+}
+
+GetOptions(
+    \%options,
+    'dns=s',   'format=s',   'no=s',   'all', 'wide', 'traverse=i',
+    'delay=i', 'template=s', 'port=s', 'proto=s',
+    'tcptimeout=i', 'udptimeout=i', 'threads=i', 'subdomain=s', 'search=s',
+    'dnsservers=s', 'ztstop',       'prefix=s',
+    'tld=s', 'output=s', 'range=s', 'wildcstop',
+    'maxbruteforce=i', 'maxlookups=s', 'arin=s', 'only=s', 'dontreset',
+    'verbose|v' => \$verbose,
+    'debug+'    => \$debug,
+    'help|h'    => sub { help(); },
+    'version'   => sub { print_version(); },
+) or help();
+
+if ( !defined( $options{dns} ) and !defined( $options{range} ) ) {
+    help();
+}
+elsif ( defined( $options{dns} ) and defined( $options{range} ) ) {
+    print "Error: fierce requires that you use either -dns or -range.\n";
+    exit;
+}
+else { }
+
+if ( $options{port} ) {
+    if ( $options{port} >= 1 ) {
+        $port = $options{port};
+    }
+}
+if ( $options{proto} ) {
+    if ( $options{proto} eq 'udp' or $options{proto} eq 'tcp' ) {
+        $proto = $options{proto};
+    }
+}
+if ( $options{tcptimeout} ) {
+    if ( $options{tcptimeout} >= 1 ) {
+        $tcp_timeout = $options{tcptimeout};
+    }
+}
+if ( $options{udptimeout} ) {
+    if ( $options{udptimeout} >= 1 ) {
+        $udp_timeout = $options{udptimeout};
+    }
+}
+if ( $options{delay} ) {
+    if ( $options{delay} >= 1 ) {
+        $delay = $options{delay};
+    }
+}
+if ( $options{threads} ) {
+    if ( $options{threads} >= 1 ) {
+        $threads = $options{threads};
+    }
+}
+if ( $options{traverse} ) {
+    unless ( $options{traverse} =~ /^\d{1,3}$/
+        && ( $options{traverse} >= 0 || $options{traverse} <= 255 )
+        && $options{traverse} !~ /^0\d{1,2}$/ )
+    {
+        print "The -traverse flag must contain an integer 0-255\n";
+        exit;
+    }
+    $traverse = $options{traverse};
+}
+if ( $options{search} ) {
+    $search = $options{search};
+    $search =~ s/,/ /g;
+    $pattern = 1;
+}
+if ( $options{no} and $options{only} ) {
+    print "Error: you can't use -only and -no together\n";
+    exit;
+}
+if ( $options{all} and $options{only} ) {
+    print "Error: you can't use -all and -only together\n";
+    exit;
+}
+if ( $options{all} and $options{no} ) {
+    print "Error: you can't use -all and -no together\n";
+    exit;
+}
+if ( $options{no} ) {
+    $no = $options{no};
+}
+if ( $options{only} ) {
+    $no = 'arin, zt, prebf, subbf, tldbf, findmx, ';
+    $no .= 'wildc, hlookups, vhost, whois, nearby';
+
+    foreach my $item ( split( ',', $options{only} ) ) {
+        chomp;
+        $no =~ s/$item//;
+    }
+}
+if ( $options{all} ) {
+    $no = '';
+}
+if ( $options{wide} ) {
+    $wide = 1;
+}
+if ( $options{dnsservers} ) {
+    if ( -r $options{dnsservers} ) {
+        open( DNSSERVERS, $options{dnsservers} )
+          || die("Could not open file!");
+        @name_servers = <DNSSERVERS>;
+        close(DNSSERVERS);
+    }
+    else {
+        push( @name_servers, split( ',', $options{dnsservers} ) );
+    }
+}
+else {
+    if ( $options{range} ) {
+        print "Error: -range requires the -dnsservers option\n";
+        exit;
+    }
+}
+if ( $options{maxbruteforce} ) {
+    $max_bruteforce = $options{maxbruteforce};
+}
+if ( $options{maxlookups} ) {
+    if ( $options{maxlookups} =~ /(\d+)/ and $options{maxlookups} >= 1 ) {
+        $max_lookups = $options{maxlookups};
+    }
+}
+if ( $options{prefix} ) {
+    if ( -r $options{prefix} ) {
+        open( DAT, $options{prefix} ) || die("Could not open file!");
+        @prefix_list = <DAT>;
+        close(DAT);
+    }
+    else {
+        if ( $options{prefix} =~ /(https?:\/\/.*)/ ) {
+            my $request = $1;
+            require LWP::UserAgent;
+            my $ua = LWP::UserAgent->new;
+            $ua->timeout(10);
+            $ua->env_proxy;
+            my $response = $ua->get("$request");
+            if ( $response->is_success ) {
+                @prefix_list = split( "\n", $response->decoded_content );
+            }
+            else {
+                print "Error: Requesting $request\n";
+                exit;
+            }
+        }
+    }
+}
+else {
+    if ( -r "hosts.txt" ) {
+        open( DAT, "hosts.txt" ) || die("Could not open hosts.txt file!");
+        @prefix_list = <DAT>;
+        close(DAT);
+    }
+    else {
+        @prefix_list = (
+            'imap', 'www',  'mail', 'files', 'file', 'ftp',
+            'dns',  'smtp', 'ns',   'mx',    'dev',  'devel',
+            'svn',  'cvs',  'test', 'vpn',   'unix', 'webmail'
+        );
+    }
+}
+if ( $options{format} ) {
+    if (   $options{format} =~ /xml/i
+        or $options{format} =~ /all/i
+        or $options{format} =~ /html/i
+        or $options{format} =~ /txt/i )
+    {
+        $format = $options{format};
+    }
+    else {
+        print "Unsupport Output Format\n";
+        exit;
+    }
+}
+if ( $options{subdomain} ) {
+    if ( -r $options{subdomain} ) {
+        open( DAT, $options{subdomain} ) || die("Could not open file!");
+        @subdomain_list = <DAT>;
+        close(DAT);
+    }
+    else {
+        if ( $options{subdomain} =~ /(https?:\/\/.*)/ ) {
+            my $request = $1;
+            require LWP::UserAgent;
+            my $ua = LWP::UserAgent->new;
+            $ua->timeout(10);
+            $ua->env_proxy;
+            my $response = $ua->get("$request");
+            if ( $response->is_success ) {
+                @subdomain_list = split( "\n", $response->decoded_content );
+            }
+            else {
+                print "Error: Requesting $request\n";
+                exit;
+            }
+        }
+    }
+}
+else {
+    @subdomain_list = ( 'spy', 'red', 'mail', 'ece' );
+}
+if ( $options{tld} ) {
+    if ( -r $options{tld} ) {
+        open( DAT, $options{tld} ) || die("Could not open file!");
+        @tld_list = <DAT>;
+        close(DAT);
+    }
+    else {
+        if ( $options{tld} =~ /(https?:\/\/.*)/ ) {
+            my $request = $1;
+            require LWP::UserAgent;
+            my $ua = LWP::UserAgent->new;
+            $ua->timeout(10);
+            $ua->env_proxy;
+            my $response = $ua->get("$request");
+            if ( $response->is_success ) {
+                @tld_list = split( "\n", $response->decoded_content );
+            }
+            else {
+                print "Error: Requesting $request\n";
+                exit;
+            }
+        }
+    }
+}
+else {
+    ## intensionally skipping gov and mil
+    @tld_list = (
+        'com', 'edu',  'net',    'org', 'name', 'info',
+        'xxx', 'coop', 'aero',   'pro', 'xxx',  'co.uk',
+        'au',  'de',   'tv',     'biz', 'cc',   'cn',
+        'us',  'la',   'com.au', 'uk',  'af',   'al',
+        'dz',  'as',   'ad',     'ao',  'ai',   'aq',
+        'ag',  'ar',   'am',     'aw',  'ac',   'au',
+        'at',  'az',   'bs',     'bh',  'bd',   'bb',
+        'by',  'be',   'bz',     'bj',  'bm',   'bt',
+        'bo',  'ba',   'bw',     'bv',  'br',   'io',
+        'bn',  'bg',   'bf',     'bi',  'kh',   'cm',
+        'ca',  'cv',   'ky',     'cf',  'td',   'cl',
+        'cx',  'co',   'km',     'cd',  'cg',   'ck',
+        'cr',  'ci',   'hr',     'cu',  'cy',   'cz',
+        'dk',  'dj',   'dm',     'do',  'tp',   'ec',
+        'eg',  'sv',   'gq',     'er',  'ee',   'et',
+        'fk',  'fo',   'fj',     'fi',  'fr',   'gf',
+        'pf',  'tf',   'ga',     'gm',  'ge',   'gh',
+        'gi',  'gr',   'gl',     'gd',  'gp',   'gu',
+        'gt',  'gg',   'gn',     'gw',  'gy',   'ht',
+        'hm',  'va',   'hn',     'hk',  'hu',   'is',
+        'in',  'id',   'ir',     'iq',  'ie',   'im',
+        'il',  'it',   'jm',     'jp',  'je',   'jo',
+        'kz',  'ke',   'ki',     'kp',  'kr',   'kw',
+        'kg',  'lv',   'lb',     'ls',  'lr',   'ly',
+        'li',  'lt',   'lu',     'mo',  'mk',   'mg',
+        'mw',  'my',   'mv',     'ml',  'mt',   'mh',
+        'mq',  'mr',   'mu',     'yt',  'mx',   'fm',
+        'md',  'mc',   'mn',     'ms',  'ma',   'mz',
+        'mm',  'na',   'nr',     'np',  'nl',   'an',
+        'nc',  'nz',   'ni',     'ne',  'ng',   'nu',
+        'nf',  'mp',   'no',     'om',  'pk',   'pw',
+        'pa',  'pg',   'py',     'pe',  'ph',   'pn',
+        'pl',  'pt',   'pr',     'qa',  're',   'ro',
+        'ru',  'rw',   'kn',     'lc',  'vc',   'ws',
+        'sm',  'st',   'sa',     'sn',  'sc',   'sl',
+        'sg',  'sk',   'si',     'sb',  'so',   'za',
+        'gz',  'es',   'lk',     'sh',  'pm',   'sd',
+        'sr',  'sj',   'sz',     'se',  'ch',   'sy',
+        'tw',  'tj',   'tz',     'th',  'tg',   'tk',
+        'to',  'tt',   'tn',     'tr',  'tm',   'tc',
+        'ug',  'ua',   'ae',     'gb',  'um',   'uy',
+        'uz',  'vu',   've',     'vn',  'vg',   'vi',
+        'wf',  'eh',   'ye',     'yu',  'za',   'zr',
+        'zm',  'zw',   'int',    'gs',  'su',
+    );
+}
+
+if ( $options{output} ) {
+    $filename = $options{output};
+    if ( $format eq 'all' ) {
+        if ( -e "$filename.txt" ) {    # file exists
+            print
+"$filename.txt already exists, do you want to overwrite it? [Y|N] ";
+            chomp( my $overwrite = <STDIN> );
+            if ( $overwrite eq 'y' || $overwrite eq 'Y' ) {
+                open FILE_TXT, '>', "$filename.txt"
+                  or die "Having trouble opening $filename.txt anyway\n";
+            }
+            else {
+                die "Okay, giving up\n";
+            }
+        }
+        else {
+            open FILE_TXT, '>', "$filename.txt"
+              or die "Having trouble opening $filename.txt anyway\n";
+        }
+
+        if ( -e "$filename.xml" ) {    # file exists
+            print
+"$filename.xml already exists, do you want to overwrite it? [Y|N] ";
+            chomp( my $overwrite = <STDIN> );
+            if ( $overwrite eq 'y' || $overwrite eq 'Y' ) {
+                open FILE_XML, '>', "$filename.xml"
+                  or die "Having trouble opening $filename.xml anyway\n";
+            }
+            else {
+                die "Okay, giving up\n";
+            }
+        }
+        else {
+            open FILE_XML, '>', "$filename.xml"
+              or die "Having trouble opening $filename.xml anyway\n";
+        }
+
+        if ( -e "$filename.html" ) {    # file exists
+            print
+"$filename.html already exists, do you want to overwrite it? [Y|N] ";
+            chomp( my $overwrite = <STDIN> );
+            if ( $overwrite eq 'y' || $overwrite eq 'Y' ) {
+                open FILE_HTML, '>', "$filename.html"
+                  or die "Having trouble opening $filename.html anyway\n";
+            }
+            else {
+                die "Okay, giving up\n";
+            }
+        }
+        else {
+            open FILE_HTML, '>', "$filename.html"
+              or die "Having trouble opening $filename.html anyway\n";
+        }
+
+    }
+    else {
+        if ( -e $filename ) {    # file exists
+            print
+              "$filename already exists, do you want to overwrite it? [Y|N] ";
+            chomp( my $overwrite = <STDIN> );
+            if ( $overwrite eq 'y' || $overwrite eq 'Y' ) {
+                open FILE, '>', $filename
+                  or die "Having trouble opening $filename anyway\n";
+            }
+            else {
+                die "Okay, giving up\n";
+            }
+        }
+        else {
+            open FILE, '>', $filename
+              or die "Having trouble opening $filename\n";
+        }
+    }
+}
+my ($template);
+
+if ( $options{template} ) {
+    if ( -d $options{template} ) {
+        $template = $options{template};
+    }
+}
+else {
+    if ( -d "tt/" ) {
+        $template = "tt/";
+    }
+    else {
+        ## start handling windows
+        if ( $^O eq 'MSWin32' || $^O =~ /cygwin/ ) {
+            require Win32;
+            import Win32;
+            Win32->import(qw(CSIDL_APPDATA));
+            my $dir = Win32::GetFolderPath( CSIDL_APPDATA() );
+
+            #$configdir = $dir . "\\" . "fierce2";
+            print "Sorry, we dont support windows yet\n";
+            exit;
+        }
+        else {
+            my $homedir;
+            if ( exists $ENV{HOME} and defined $ENV{HOME} ) {
+                $homedir = $ENV{HOME};
+            }
+            elsif ( exists $ENV{LOGDIR} and defined $ENV{LOGDIR} ) {
+                $homedir = $ENV{LOGDIR};
+            }
+            else {
+                print "Error: can't find homedir\n";
+                exit;
+            }
+            if ( -d "$homedir/.fierce2/tt" ) {
+                $template = "$homedir/.fierce2/tt";
+            }
+        }
+    }
+}
+
+if ( !-d $template ) {
+    print "Error: template directory not found.\n";
+    print
+"Please copy the tt/ directory to the current directory or use --template to specify another location.\n";
+    exit;
+}
+
+# some useful options (see below for full list)
+my $config_html = {
+    INCLUDE_PATH => "$template/html",    # or list ref
+    INTERPOLATE  => 1,                   # expand "$var" in plain text
+    POST_CHOMP   => 1,                   # cleanup whitespace
+    EVAL_PERL    => 1,                   # evaluate Perl code blocks
+};
+
+# create Template object
+my $tt_html = Template->new($config_html);
+
+# some useful options (see below for full list)
+my $config_txt = {
+    INCLUDE_PATH => "$template/txt",     # or list ref
+    INTERPOLATE  => 1,                   # expand "$var" in plain text
+    POST_CHOMP   => 1,                   # cleanup whitespace
+    EVAL_PERL    => 1,                   # evaluate Perl code blocks
+};
+
+# create Template object
+my $tt_txt = Template->new($config_txt);
+
+# some useful options (see below for full list)
+my $config_xml = {
+    INCLUDE_PATH => "$template/xml",     # or list ref
+    INTERPOLATE  => 1,                   # expand "$var" in plain text
+    POST_CHOMP   => 1,                   # cleanup whitespace
+    EVAL_PERL    => 1,                   # evaluate Perl code blocks
+};
+
+# create Template object
+my $tt_xml = Template->new($config_xml);
+
+my $base = Base->new(
+    'name_servers' => \@name_servers,
+    'log_file'     => $log_file,
+    'threads'      => $threads,
+    'delay'        => $delay,
+    'port'         => $port,
+    'proto'        => $proto,
+    'tcp_timeout'  => $tcp_timeout,
+    'udp_timeout'  => $udp_timeout,
+    'verbose'      => $verbose,
+    'debug'        => $debug,
+);
+
+## parse the object into an output scalar
+sub tt_output_setup_xml {
+    my ( $obj, $result, $template ) = @_;
+
+    my $obj_output;
+
+    my $vars = {
+        result   => $result,
+        start    => $obj->start,
+        startstr => $obj->startstr,
+        end      => $obj->end,
+        endstr   => $obj->endstr,
+        elapsed  => $obj->elapsed,
+    };
+
+    ## nmap output style
+    # reference to output text string
+    $tt_xml->process( "$template", $vars, \$obj_output )
+      || die $tt_xml->error(), "\n";
+
+    return $obj_output;
+}
+
+## parse the object into an output scalar in txt format
+sub tt_output_setup_txt {
+    my ( $obj, $result, $template ) = @_;
+
+    my $obj_output;
+
+    my $vars = {
+        result   => $result,
+        start    => $obj->start,
+        startstr => $obj->startstr,
+        end      => $obj->end,
+        endstr   => $obj->endstr,
+        elapsed  => $obj->elapsed,
+    };
+
+    ## nmap output style
+    # reference to output text string
+    $tt_txt->process( "$template", $vars, \$obj_output )
+      || die $tt_txt->error(), "\n";
+
+    $obj_output = validate($obj_output);
+    return $obj_output;
+}
+
+## parse the object into an output scalar in html format
+sub tt_output_setup_html {
+    my ( $obj, $result, $template ) = @_;
+
+    my $obj_output;
+
+    my $vars = {
+        result   => $result,
+        start    => $obj->start,
+        startstr => $obj->startstr,
+        end      => $obj->end,
+        endstr   => $obj->endstr,
+        elapsed  => $obj->elapsed,
+    };
+
+    ## nmap output style
+    # reference to output text string
+    $tt_html->process( "$template", $vars, \$obj_output )
+      || die $tt_txt->error(), "\n";
+
+    $obj_output = validate($obj_output);
+    return $obj_output;
+}
+
+## print the output of the module
+sub template_output {
+    my ( $output_xml, $output_txt, $output_html ) = @_;
+    $output_xml  = validate($output_xml);
+    $output_txt  = validate($output_txt);
+    $output_html = validate($output_html);
+
+    if ( $format eq 'all' and defined( $options{output} ) ) {
+        print FILE_TXT $output_txt;
+        print FILE_XML $output_xml;
+        print FILE_HTML $output_html;
+    }
+    else {
+        if ( $format =~ /txt/i ) {
+            if ( defined( $options{output} ) ) {
+                print FILE $output_txt;
+            }
+            else {
+                print $output_txt;
+            }
+        }
+        elsif ( $format =~ /xml/i ) {
+            if ( defined( $options{output} ) ) {
+                print FILE $output_xml;
+            }
+            else {
+                print $output_xml;
+            }
+        }
+        elsif ( $format =~ /html/i ) {
+            if ( defined( $options{output} ) ) {
+                print FILE $output_html;
+            }
+            else {
+                print $output_html;
+            }
+        }
+        else { }
+    }
+
+    if ( defined($filename) ) {
+        print $output_txt;
+    }
+}
+
+my $args;
+foreach my $key ( keys %options ) {
+    $args .= " -$key " . $options{$key};
+}
+my $full_output;
+my $fierce_start          = time();
+my $fierce_startstr       = localtime($fierce_start);
+my $start_fiercescan_vars = {
+    args       => $args,
+    start      => $fierce_start,
+    startstr   => $fierce_startstr,
+    verbose    => $verbose,
+    debug      => $debug,
+    fversion   => $fversion,
+    furl       => $furl,
+    xmlversion => $xmlversion,
+};
+
+## xml output
+my $start_fiercescan_output_xml;
+$tt_xml->process( 'start_fiercescan.tt', $start_fiercescan_vars,
+    \$start_fiercescan_output_xml )
+  || die $tt_xml->error(), "\n";
+
+## txt output
+my $start_fiercescan_output_txt;
+$tt_txt->process( 'start_fiercescan.tt', $start_fiercescan_vars,
+    \$start_fiercescan_output_txt )
+  || die $tt_txt->error(), "\n";
+
+## html output
+my $start_fiercescan_output_html;
+$tt_html->process( 'start_fiercescan.tt', $start_fiercescan_vars,
+    \$start_fiercescan_output_html )
+  || die $tt_html->error(), "\n";
+
+template_output( $start_fiercescan_output_xml, $start_fiercescan_output_txt,
+    $start_fiercescan_output_html, );
+
+my @additional_prefixes;
+my @additional_domains;
+my @additional_domains_dontscan;
+
+# {{{ enumerate_domain: Domain ->
+sub enumerate_domain {
+    my ($domain)        = @_;
+    my $dns             = $domain->domain;
+    my $ip              = $domain->ip;
+    my $domain_start    = time();
+    my $domain_startstr = localtime($domain_start);
+
+    my $start_domainscan_vars = {
+        domain   => $dns,
+        ip       => $ip,
+        start    => $domain_start,
+        startstr => $domain_startstr,
+    };
+
+    ## xml output
+    my $start_domainscan_output_xml;
+    $tt_xml->process( 'start_domainscan.tt', $start_domainscan_vars,
+        \$start_domainscan_output_xml )
+      || die $tt_xml->error(), "\n";
+
+    ## txt output
+    my $start_domainscan_output_txt;
+    $tt_txt->process( 'start_domainscan.tt', $start_domainscan_vars,
+        \$start_domainscan_output_txt )
+      || die $tt_txt->error(), "\n";
+
+    ## html output
+    my $start_domainscan_output_html;
+    $tt_html->process( 'start_domainscan.tt', $start_domainscan_vars,
+        \$start_domainscan_output_html )
+      || die $tt_html->error(), "\n";
+
+    template_output( $start_domainscan_output_xml, $start_domainscan_output_txt,
+        $start_domainscan_output_html, );
+
+    my ( $zt, $ns, $prefix_bf, $subdomain_bf, $hostname_lookups, $find_mx );
+    my ( $whois, $wildcard, $tld_bf, $find_nearby );
+
+    my ( %output_data,         $vhost_result );
+    my ( $subdomain_bf_result, $prefix_bf_result );
+    my ( $wildcard_result,     $hostname_lookups_result );
+    my ( $find_mx_result,      $whois_result );
+    my ( $tld_bf_result,       $zt_result );
+    my ($find_nearby_result);
+
+    header_output("Nameservers for $dns:\n");
+    $ns = NameServers->new();
+    $ns = $ns->execute( $domain, $base );
+
+    my $ns_result = $ns->result();
+    template_output(
+        tt_output_setup_xml( $ns, $ns_result, 'ns.tt' ),
+        tt_output_setup_txt( $ns, $ns_result, 'ns.tt' ),
+        tt_output_setup_html( $ns, $ns_result, 'ns.tt' ),
+    );
+
+    if ( grep( !/arin/, $no ) ) {
+        ###################
+        #
+        # ARIN
+        #
+        my $arin_query;
+        if ( defined( $options{arin} ) ) {
+            $arin_query = $options{arin};
+            $options{arin} = undef;
+        }
+        else {
+            $arin_query = $dns;
+            $arin_query =~ s/\..*//g;
+        }
+        header_output("ARIN lookup \"$arin_query\":\n");
+        my $arin = tARIN->new( base => $base, query => $arin_query );
+        $arin = $arin->execute($domain);
+
+        my $arin_result       = $arin->result();
+        my $net_handle_result = $arin->net_handle_result();
+
+        my $arin_vars = {
+            result            => $arin_result,
+            net_handle_result => $net_handle_result,
+            query             => $arin_query,
+            start             => $arin->start,
+            startstr          => $arin->startstr,
+            end               => $arin->end,
+            endstr            => $arin->endstr,
+            elapsed           => $arin->elapsed,
+        };
+
+        ## xml output
+        my $arin_output_xml;
+        $tt_xml->process( "arin.tt", $arin_vars, \$arin_output_xml )
+          || die $tt_xml->error(), "\n";
+
+        ## txt output
+        my $arin_output_txt;
+        $tt_txt->process( "arin.tt", $arin_vars, \$arin_output_txt )
+          || die $tt_txt->error(), "\n";
+
+        ## html output
+        my $arin_output_html;
+        $tt_html->process( "arin.tt", $arin_vars, \$arin_output_html )
+          || die $tt_html->error(), "\n";
+
+        template_output( $arin_output_xml, $arin_output_txt, $arin_output_html,
+        );
+    }
+
+    ###################
+    #
+    # Zone Transfers
+    #
+
+    if ( grep( !/zt/, $no ) ) {
+        header_output("Zone Transfer:\n");
+        $zt = ZoneTransfer->new();
+        $zt = $zt->execute( $domain, $base, $base->new_dns_resolver );
+
+        $zt_result = $zt->result();
+        template_output(
+            tt_output_setup_xml( $zt, $zt_result, 'zt.tt' ),
+            tt_output_setup_txt( $zt, $zt_result, 'zt.tt' ),
+            tt_output_setup_html( $zt, $zt_result, 'zt.tt' ),
+        );
+    }
+    unless ( $options{ztstop} and $zt->check == 1 ) {
+        #################################################
+        #
+        # Check Wildcard
+        #
+        if ( grep( !/wildc/, $no ) ) {
+
+            header_output("Wildcards:\n");
+
+            $wildcard = tCheckWildCard->new();
+            $wildcard = $wildcard->execute($domain);
+
+            $wildcard_result = $wildcard->result();
+            template_output(
+                tt_output_setup_xml(
+                    $wildcard, $wildcard_result, 'wildcard.tt'
+                ),
+                tt_output_setup_txt(
+                    $wildcard, $wildcard_result, 'wildcard.tt'
+                ),
+                tt_output_setup_html(
+                    $wildcard, $wildcard_result, 'wildcard.tt'
+                ),
+            );
+        }
+        unless ($options{wildcstop}
+            and defined($wildcard)
+            and $wildcard->check == 1 )
+        {
+            ###################################
+            #
+            # Brute Force DNS
+            #
+            if ( grep( !/prebf/, $no ) ) {
+
+                header_output("Prefix Bruteforce:\n");
+
+                $prefix_bf = tBruteForceDNS->new(
+                    'base'               => $base,
+                    'test_with_wildcard' => 1,
+                    'max_bruteforce'     => $max_bruteforce,
+                    'prefix_list'        => \@prefix_list,
+                );
+                $prefix_bf = $prefix_bf->execute($domain);
+
+                $prefix_bf_result = $prefix_bf->result();
+                template_output(
+                    tt_output_setup_xml(
+                        $prefix_bf, $prefix_bf_result, 'prefix_bf.tt'
+                    ),
+                    tt_output_setup_txt(
+                        $prefix_bf, $prefix_bf_result, 'prefix_bf.tt'
+                    ),
+                    tt_output_setup_html(
+                        $prefix_bf, $prefix_bf_result, 'prefix_bf.tt'
+                    ),
+                );
+            }
+            #####################################
+            #
+            # Subdomain Brute Force DNS
+            #
+            if ( grep( !/subbf/, $no ) ) {
+                header_output("Subdomain Bruteforce:\n");
+
+                my @subdomain_prefix_list = ( 'www', 'mail' );
+
+                $subdomain_bf = tSubdomainBruteForce->new(
+                    'base'               => $base,
+                    'test_with_wildcard' => 1,
+                    'prefix_list'        => \@subdomain_prefix_list,
+                    'subdomain_list'     => \@subdomain_list,
+                );
+                $subdomain_bf = $subdomain_bf->execute($domain);
+
+                $subdomain_bf_result = $subdomain_bf->result();
+                template_output(
+                    tt_output_setup_xml(
+                        $subdomain_bf, $subdomain_bf_result,
+                        'subdomain_bf.tt'
+                    ),
+                    tt_output_setup_txt(
+                        $subdomain_bf, $subdomain_bf_result,
+                        'subdomain_bf.tt'
+                    ),
+                    tt_output_setup_html(
+                        $subdomain_bf, $subdomain_bf_result,
+                        'subdomain_bf.tt'
+                    ),
+                );
+            }
+        }
+        ###########################################
+        #
+        # TLD Brute Force DNS
+        #
+        if ( grep( !/tldbf/, $no ) ) {
+
+            header_output("TLD Bruteforce:\n");
+
+            $tld_bf = tTLDBruteForce->new(
+                'base'           => $base,
+                'extension_list' => \@tld_list,
+            );
+            $tld_bf        = $tld_bf->execute($domain);
+            $tld_bf_result = $tld_bf->result();
+            if ( scalar( @{$tld_bf_result} ) > 0 ) {
+                print
+"Would you like to add domains found using TLD Bruteforce: [Y|N|A=Add all|S=Skip all]\n";
+                chomp( my $add_tldbf = <STDIN> );
+                if ( $add_tldbf =~ /^y$/i or $add_tldbf =~ /^a$/i ) {
+                    foreach ( @{$tld_bf_result} ) {
+                        my $additional_hostname = $_->hostname;
+                        $additional_hostname =~ s/\s+//g;
+                        my ( $additional_prefix, $additional_domain );
+                        if ( $additional_hostname =~
+                            /(.*\.\w{1,3}(\.\w{1,3})?)$/ )
+                        {
+                            $additional_domain = $1;
+                        }
+                        my $res = $base->new_dns_resolver();
+                        my $answer =
+                          $base->lookup_hostname( $res, $additional_domain );
+                        if ( defined($answer) ) {
+                            my $additional_domain_obj = Domain->new(
+                                domain => $answer->name,
+                                ip     => $answer->address,
+                                type   => $answer->type,
+                                ttl    => $answer->ttl,
+                            );
+
+                            if (
+                                (
+                                    $base->isinlist_domain(
+                                        \@additional_domains,
+                                        $additional_domain
+                                    ) == 0
+                                )
+                                and (
+                                    $base->isinlist_domain(
+                                        \@additional_domains_dontscan,
+                                        $additional_domain ) == 0
+                                )
+                              )
+                            {
+                                if ( $add_tldbf =~ /^a$/i ) {
+                                    push( @additional_domains,
+                                        $additional_domain_obj );
+                                }
+                                elsif ( $add_tldbf =~ /^s$/i ) {
+                                    push( @additional_domains_dontscan,
+                                        $additional_domain_obj );
+                                }
+                                else {
+                                    print
+"Would you like to scan $additional_domain ? [Y|N|S=Skip all] \n";
+                                    chomp( my $add_tldbf_i = <STDIN> );
+                                    if ( $add_tldbf_i =~ /^y$/i ) {
+                                        push( @additional_domains,
+                                            $additional_domain_obj );
+                                    }
+                                    else {
+                                        if ( $add_tldbf_i =~ /^s$/i ) {
+                                            $add_tldbf = 's';
+                                        }
+                                        push( @additional_domains_dontscan,
+                                            $additional_domain_obj );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            template_output(
+                tt_output_setup_xml( $tld_bf, $tld_bf_result, 'tld_bf.tt' ),
+                tt_output_setup_txt( $tld_bf, $tld_bf_result, 'tld_bf.tt' ),
+                tt_output_setup_html( $tld_bf, $tld_bf_result, 'tld_bf.tt' ),
+            );
+        }
+        ######################################
+        #
+        # Vhosts
+        #
+        if ( grep( !/vhost/, $no ) ) {
+
+            header_output("Virtual Hosts:\n");
+
+            my $vhost = tVhost->new( base => $base );
+            $vhost = $vhost->execute($domain);
+
+            $vhost_result = $vhost->result();
+            template_output(
+                tt_output_setup_xml( $vhost, $vhost_result, 'vhost.tt' ),
+                tt_output_setup_txt( $vhost, $vhost_result, 'vhost.tt' ),
+                tt_output_setup_html( $vhost, $vhost_result, 'vhost.tt' ),
+            );
+        }
+        ################################################
+        #
+        # Find MX
+        #
+        if ( grep( !/findmx/, $no ) ) {
+
+            header_output("MX records:\n");
+            $find_mx = tFindMX->new( base => $base );
+            $find_mx = $find_mx->execute( $domain, $base->new_dns_resolver );
+            $find_mx_result = $find_mx->result();
+            template_output(
+                tt_output_setup_xml( $find_mx, $find_mx_result, 'find_mx.tt' ),
+                tt_output_setup_txt( $find_mx, $find_mx_result, 'find_mx.tt' ),
+                tt_output_setup_html( $find_mx, $find_mx_result, 'find_mx.tt' ),
+            );
+        }
+        #####################################################
+        #
+        # Whois
+        #
+        if ( grep( !/whois/, $no ) ) {
+
+            header_output("Whois Lookups:\n");
+
+            $whois = WhoisLookup->new();
+            $whois = $whois->execute($domain);
+
+            $whois_result = $whois->result();
+            template_output(
+                tt_output_setup_xml( $whois, $whois_result, 'whois.tt' ),
+                tt_output_setup_txt( $whois, $whois_result, 'whois.tt' ),
+                tt_output_setup_html( $whois, $whois_result, 'whois.tt' ),
+            );
+        }
+
+        ###############################################################
+        #
+        # Hostname Lookups
+        #
+        if ( grep( !/hlookups/, $no ) ) {
+            my $prefix_cnames;
+            if ( grep( !/prebf/, $no ) and defined($prefix_bf) ) {
+                $prefix_cnames = $prefix_bf->cnames;
+            }
+            header_output("Hostname Lookups:\n");
+            $hostname_lookups = tHostnameLookups->new(
+                base          => $base,
+                max_lookups   => $max_lookups,
+                prefix_cnames => $prefix_cnames
+            );
+            $hostname_lookups = $hostname_lookups->execute($domain);
+
+            $hostname_lookups_result = $hostname_lookups->result();
+            template_output(
+                tt_output_setup_xml(
+                    $hostname_lookups, $hostname_lookups_result,
+                    'hostname_lookups.tt'
+                ),
+                tt_output_setup_txt(
+                    $hostname_lookups, $hostname_lookups_result,
+                    'hostname_lookups.tt'
+                ),
+                tt_output_setup_html(
+                    $hostname_lookups, $hostname_lookups_result,
+                    'hostname_lookups.tt'
+                ),
+            );
+        }
+        #########################################################
+        #
+        # Find Nearby
+        #
+        if ( grep( !/nearby/, $no ) ) {
+            my @ipranges;
+            if ( grep( !/prebf/, $no ) ) {
+                foreach my $n ( @{$prefix_bf_result} ) {
+                    if ( scalar( grep( $_ eq $n->ip, @ipranges ) ) == 0 ) {
+                        push( @ipranges, $n->ip );
+                    }
+                }
+            }
+            if ( grep( !/revlook/, $no ) ) {
+                foreach my $n ( @{$hostname_lookups_result} ) {
+                    if ( scalar( grep( $_ eq $n->ip, @ipranges ) ) == 0 ) {
+                        push( @ipranges, $n->ip );
+                    }
+                }
+            }
+            my $iprange_obj = IPrange->new( iprange => \@ipranges );
+
+            header_output("Nearby IPs:\n");
+            $find_nearby = tFindNearby->new(
+                base       => $base,
+                search     => $search,
+                pattern    => $pattern,
+                traverse   => $traverse,
+                wide       => $wide,
+                domain_obj => $domain
+            );
+            $find_nearby        = $find_nearby->execute($iprange_obj);
+            $find_nearby_result = $find_nearby->result();
+            my $find_nearby_additional = $find_nearby->additional_hosts();
+            if ( scalar( @{$find_nearby_additional} ) > 0 ) {
+                print
+"Would you like to add domains found using Nearby IPs: [Y|N]\n";
+                chomp( my $add_nearby = <STDIN> );
+                if ( $add_nearby =~ /^y$/i ) {
+                    foreach ( @{$find_nearby_additional} ) {
+                        my $additional_hostname = $_->ptrdname;
+                        $additional_hostname =~ s/\s+//g;
+                        my ( $additional_prefix, $additional_domain );
+                        if ( $additional_hostname =~
+                            /(.*)\.(.*\.\w{1,3}(\.\w{1,3})?)$/ )
+                        {
+                            $additional_prefix = $1;
+                            $additional_domain = $2;
+                        }
+                        my $res = $base->new_dns_resolver();
+                        my $answer =
+                          $base->lookup_hostname( $res, $additional_domain );
+                        if ( defined($answer) ) {
+                            my $additional_domain_obj = Domain->new(
+                                domain => $answer->name,
+                                ip     => $answer->address,
+                                type   => $answer->type,
+                                ttl    => $answer->ttl,
+                            );
+
+                            if (
+                                (
+                                    $base->isinlist_domain(
+                                        \@additional_domains,
+                                        $additional_domain
+                                    ) == 0
+                                )
+                                and (
+                                    $base->isinlist_domain(
+                                        \@additional_domains_dontscan,
+                                        $additional_domain ) == 0
+                                )
+                              )
+                            {
+                                print
+"Would you like to scan $additional_domain ? [Y|N]\n";
+                                chomp( my $add_nearby_i = <STDIN> );
+                                if ( $add_nearby_i =~ /^y$/i ) {
+                                    push( @additional_domains,
+                                        $additional_domain_obj );
+                                }
+                                else {
+                                    push( @additional_domains_dontscan,
+                                        $additional_domain_obj );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            template_output(
+                tt_output_setup_xml(
+                    $find_nearby, $find_nearby_result, 'find_nearby.tt'
+                ),
+                tt_output_setup_txt(
+                    $find_nearby, $find_nearby_result, 'find_nearby.tt'
+                ),
+                tt_output_setup_html(
+                    $find_nearby, $find_nearby_result, 'find_nearby.tt'
+                ),
+            );
+        }
+    }
+    my $domain_end     = time();
+    my $domain_endstr  = localtime($fierce_start);
+    my $domain_elapsed = $domain_end - $domain_start;
+
+    my $end_domainscan_vars = {
+        end     => $domain_end,
+        endstr  => $domain_endstr,
+        elapsed => $domain_elapsed,
+        verbose => $verbose,
+        debug   => $debug,
+    };
+
+    ## xml output
+    my $end_domainscan_output_xml;
+    $tt_xml->process( 'end_domainscan.tt', $end_domainscan_vars,
+        \$end_domainscan_output_xml )
+      || die $tt_xml->error(), "\n";
+
+    ## xml output
+    my $end_domainscan_output_txt;
+    $tt_txt->process( 'end_domainscan.tt', $end_domainscan_vars,
+        \$end_domainscan_output_txt )
+      || die $tt_txt->error(), "\n";
+
+    ## html output
+    my $end_domainscan_output_html;
+    $tt_html->process( 'end_domainscan.tt', $end_domainscan_vars,
+        \$end_domainscan_output_html )
+      || die $tt_html->error(), "\n";
+
+    template_output( $end_domainscan_output_xml, $end_domainscan_output_txt,
+        $end_domainscan_output_html, );
+
+    unless ( $options{dontreset} ) {
+        $base = Base->new(
+            'name_servers' => \@name_servers,
+            'log_file'     => $log_file,
+            'threads'      => $threads,
+            'delay'        => $delay,
+            'port'         => $port,
+            'tcp_timeout'  => $tcp_timeout,
+            'udp_timeout'  => $udp_timeout,
+        );
+    }
+
+    return;
+}    #}}}
+
+if ( $options{range} ) {
+    if ( !$options{dnsservers} ) {
+        help();
+    }
+
+    my @input_ranges;
+    if ( -r $options{range} ) {
+        open( DAT, $options{range} ) || die("Could not open file!");
+        @input_ranges = <DAT>;
+        close(DAT);
+    }
+    else {
+        @input_ranges = split( ',', $options{range} );
+    }
+
+    foreach my $range (@input_ranges) {
+        chomp($range);
+        my @ipranges;
+        if ( $range =~ /(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3})\-(\d{1,3})/ ) {
+            my ( $group, $oct2, $oct3 ) = ( $1, $2, $3 );
+            foreach ( $oct2 .. $oct3 ) {
+                chomp;
+                push( @ipranges, "$group.$_" );
+            }
+        }
+        elsif ( $range =~ /(\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d{1,3})\/(\d{1,3})/ )
+        {
+            push( @ipranges, $options{range} );
+        }
+        else {
+            print "Error: invalid range: $range\n";
+            exit;
+        }
+
+        my $iprange_obj = IPrange->new( iprange => \@ipranges );
+
+        header_output("Finding Nearby IPs ... \n");
+        my $find_nearby = tFindNearby->new(
+            base     => $base,
+            search   => $search,
+            pattern  => $pattern,
+            traverse => $traverse,
+            wide     => $wide,
+        );
+        $find_nearby = $find_nearby->execute($iprange_obj);
+
+        my $find_nearby_result = $find_nearby->result();
+
+        template_output(
+            tt_output_setup_xml(
+                $find_nearby, $find_nearby_result, 'find_nearby.tt'
+            ),
+            tt_output_setup_txt(
+                $find_nearby, $find_nearby_result, 'find_nearby.tt'
+            ),
+
+        );
+    }
+    exit;
+}
+elsif ( $options{dns} ) {
+    if ( -r $options{dns} ) {
+        open( DAT, $options{dns} ) || die("Could not open file!");
+        @dns_names = <DAT>;
+        close(DAT);
+    }
+    else {
+        @dns_names = split( ',', $options{dns} );
+    }
+    my $res           = $base->new_dns_resolver();
+    my $total_domains = scalar(@dns_names);
+    my $i             = 1;
+    my %domain_objs;
+    foreach my $dns (@dns_names) {
+        chomp($dns);
+        my $domain = Domain->new( domain => $dns, );
+        my $answer = $base->lookup_hostname( $res, $dns );
+        my $domain_obj;
+
+        if ( !defined($answer) ) {
+            $domain_obj = Domain->new(
+                domain => $dns,
+                ip     => 'undefined',
+                type   => '',
+                ttl    => '',
+            );
+        }
+        else {
+            $domain_obj = Domain->new(
+                domain => $answer->name,
+                ip     => $answer->address,
+                type   => $answer->type,
+                ttl    => $answer->ttl,
+            );
+        }
+        push( @additional_domains_dontscan, $domain_obj );
+        $domain_objs{ $i++ } = $domain_obj;
+    }
+    $i = 1;
+    foreach ( 1 .. $total_domains ) {
+        my $domain = $domain_objs{$i};
+        enumerate_domain($domain);
+        if ( $i + 1 <= $total_domains ) {
+            $i++;
+        }
+    }
+    foreach my $domain (@additional_domains) {
+        enumerate_domain($domain);
+    }
+    my $fierce_end     = time();
+    my $fierce_endstr  = localtime($fierce_end);
+    my $fierce_elapsed = $fierce_end - $fierce_start;
+    my $end_fiercescan_output;
+    my $end_fiercescan_vars = {
+        end     => $fierce_end,
+        endstr  => $fierce_endstr,
+        elapsed => $fierce_elapsed,
+        verbose => $verbose,
+        debug   => $debug,
+    };
+
+    # reference to output text string
+    $tt_xml->process( 'end_fiercescan.tt', $end_fiercescan_vars,
+        \$end_fiercescan_output )
+      || die $tt_xml->error(), "\n";
+
+    my $end_fiercescan_output_txt;
+
+    # reference to output text string
+    $tt_txt->process( 'end_fiercescan.tt', $end_fiercescan_vars,
+        \$end_fiercescan_output_txt )
+      || die $tt_txt->error(), "\n";
+    template_output( $end_fiercescan_output, $end_fiercescan_output_txt );
+
+}
+else {
+    help();
+}

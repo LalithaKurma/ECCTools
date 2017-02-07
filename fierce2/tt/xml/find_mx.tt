@@ -1,0 +1,6 @@
+    <!--  Find MX Record-->
+    <findmx starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH node IN result %]
+        <mx preference="[% node.preference %]" exchange="[% node.exchange %]"/>
+    [% END %]</findmx>
+

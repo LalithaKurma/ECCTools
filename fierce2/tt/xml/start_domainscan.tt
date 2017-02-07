@@ -1,0 +1,2 @@
+<domainscan domain="[% domain %]" ip="[% ip %]" startscan="[% start %]" startscanstr="[% startstr %]">
+

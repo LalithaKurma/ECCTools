@@ -1,0 +1,5 @@
+    <!--  Whois -->
+    <whois starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH range IN result %]
+           <range iprange="[% range.net_range %]" nethandle="[% range.net_handle %]"/>
+    [% END %]</whois>

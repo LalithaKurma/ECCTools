@@ -1,0 +1,75 @@
+# $Id$
+package WhoisLookup;
+{
+    use Object::InsideOut qw(AttackObj);
+    use Fierce::Base;
+    use Net::Whois::ARIN;
+    use Socket;
+
+    # Base Configuration infomation
+    my @base : Field : Arg(base) : All(base) : Type(Base);
+
+    ### populated parameters
+    # list of found ranges
+    my @result : Field : Arg(result) : All(result) : Type(List(RangeResult));
+
+    # initialize the base obj
+    sub _init : Init {
+        my ($self) = @_;
+
+        # Set default if needed
+        if ( !exists( $base[$$self] ) ) {
+            $self->set( \@base, Base->new() );
+        }
+    }
+
+    # execute: Domain -> WhoisLookup
+    # perform whois lookup on a domain
+    sub execute {
+        my ( $self, $domain_obj ) = @_;
+
+        $self->_setup();
+        my $domain = $domain_obj->domain;
+        my $w      = Net::Whois::ARIN->new(
+            host    => 'whois.arin.net',
+            port    => 43,
+            timeout => 45,
+            retries => 3,
+        );
+
+        my ( @data, @query_result );
+        $ip_address = $domain_obj->ip;
+        my ( @cidr, @nethandle, @netrange );
+        eval { @query_result = $w->network($ip_address); };
+        if ( !$@ and scalar(@query_result) > 0 ) {
+            foreach my $net (@query_result) {
+                my ( $net_handle, $net_range, $net_cidr );
+                $net_handle
+                    = defined $net->{NetHandle}
+                    ? $net->{NetHandle}
+                    : 'undefined';
+                $net_range
+                    = defined( $net->{NetRange} )
+                    ? $net->{NetRange}
+                    : 'undefined';
+                $net_cidr
+                    = defined( $net->{CIDR} )
+                    ? $net->{CIDR}
+                    : 'undefined';
+                push(
+                    @data,
+                    RangeResult->new(
+                        net_range  => $net_range,
+                        net_handle => $net_handle,
+                    )
+                );
+            }
+        }
+        $self->result(@data);
+        $self->_complete();
+
+        return $self;
+    }
+}
+
+1;

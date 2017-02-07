@@ -1,0 +1,13 @@
+    <p>Zone Transfer:</p>
+    <!-- <zonetransfers starttime="[% FILTER html %][% start %][% END %]" starttimestr="[% FILTER html %][% startstr %][% END %]" endtimestr="[% FILTER html %][% end %][% END %]" endtimestr="[% FILTER html %][% endstr %][% END %]" elapsedtime="[% FILTER html %][% elapsed %][% END %]"> -->
+    <ul>
+    [% FOREACH zone_transfer IN result %]
+        <!-- <zonetransfer nameserver="[% FILTER html %][% zone_transfer.name_server %][% END %]"> -->
+        [% FILTER html %][% zone_transfer.name_server %][% END %]
+        <pre>
+        [% FOREACH o IN zone_transfer.raw_output %]
+            [% FILTER html %][% o %][% END %] <br />
+        [% END %]
+        </pre>
+    [% END %]</ul>
+

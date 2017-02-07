@@ -1,0 +1,164 @@
+use threads;
+use threads::shared;
+
+# $Id: tBruteForceDNS.pm 423 2012-12-20 17:12:55Z jabra $
+package tBruteForceDNS;
+{
+    use Object::InsideOut qw(:SHARED AttackObj);
+    use Fierce::Base;
+    use Fierce::Domain;
+    use Socket;
+    use Thread::Queue;
+    use Fierce::Domain::tCheckWildCard;
+    ### required parameters
+    # none
+
+    ## optional parameters
+    # prefixes to use during bruteforce
+    my @prefix_list : Field : Arg(prefix_list) : Get(prefix_list) :
+        Type(Array) :
+        Default( ['imap','www', 'mail', 'files', 'file', 'ftp', 'dns','smtp', 'ns', 'mx', 'dev', 'devel', 'svn', 'cvs', 'test', 'vpn', 'unix', 'webmail'] );
+
+    # max number of interation to use for bruteforce attempts
+    my @max_bruteforce : Field : Arg(max_bruteforce) : Get(max_bruteforce) :
+        Default(5);
+
+    # contiue to perform bruteforce if a wildcard is being used
+    my @test_with_wildcard : Field : Arg(test_with_wildcard) :
+        All(test_with_wildcard) : Default(1);
+
+    # Base Configuration infomation
+    my @base : Field : Arg(base) : All(base) : Type(Base);
+
+    my @has_wildcard : Field : Arg(has_wildcard) : All(has_wildcard);
+
+    ### populated parameters
+    # list of nodes found
+    my @result : Field : Arg(result) : All(result) : Type(List(Node)) :
+        Default([]);
+
+    # domain object from execute
+    my @domain_obj : Field : Arg(domain_obj) : All(domain_obj) : Type(Domain);
+
+    # list of cname that should have reverse lookups performed on them.
+    my @cnames : Field : Arg(cnames) : All(cnames) : Type(Array) :
+        Default([]);
+
+    # initialize the base obj
+    sub _init : Init {
+        my ($self) = @_;
+
+        # Set default if needed
+        if ( !exists( $base[$$self] ) ) {
+            $self->set( \@base, Base->new() );
+        }
+    }
+
+    # execute: Domain -> Fierce::Domain::tBruteForceDNS
+    # kicks off the dns bruteforce worker threads
+    sub execute {
+        my ( $self, $domain_obj ) = @_;
+
+        $self->_setup;
+        $self->domain_obj($domain_obj);
+
+        my $stream = Thread::Queue->new();
+
+        $wildcard = tCheckWildCard->new();
+        $wildcard = $wildcard->execute($domain_obj);
+	
+        $self->has_wildcard( $wildcard->check() );
+        if ( $self->has_wildcard == 0 or $self->test_with_wildcard == 1 ) {
+            foreach my $prefix ( @{ $self->prefix_list } ) {
+                $stream->enqueue($prefix);
+            }
+            my $base = $self->base;
+            foreach ( 1 .. $base->threads ) {
+                threads->new( \&thr_work, $self, $stream );
+                $stream->enqueue(undef);    # for each thread
+            }
+            foreach my $thr ( threads->list() ) {
+                $thr->join();
+            }
+        }
+        $self->_complete;
+        return $self;
+    }
+
+    # thr_work: Thread::Queue ->
+    # perform dns bruteforce using prefix and url
+    sub thr_work {
+        my ( $self, $q ) = @_;
+        my $domain = $self->domain_obj->domain;
+        my $base   = $base[$$self];
+
+        #print( 'Thread = ', threads->tid(), "\n" );
+        sleep( $base->delay() );
+        my $max   = $self->max_bruteforce + 2;
+        my $resbf = $base->new_dns_resolver();
+        while ( my $prefix = $q->dequeue() ) {
+            chomp($prefix);
+            print "Searching for $prefix.$domain.\n" if $base->verbose == 1;
+            my $i = 1;
+            while ( $i < $max ) {
+                my $packet = $resbf->search("$prefix.$domain.");
+                if ( !defined($packet) ) {
+                    $prefix .= "$i";
+                    $packet = $resbf->search("$prefix.$domain.");
+                }
+                if ( !defined($packet) ) {
+                    $prefix =~ s/$i$//g;
+                    $prefix .= "0$i";
+                    $packet = $resbf->search("$prefix.$domain.");
+                }
+                if ( defined($packet) ) {
+                    foreach my $answer (
+                        grep( ( $_->type eq 'A' or $_->type eq 'AAA' or $_->type eq 'CNAME' ),
+                            $packet->answer )
+                        )
+                    {
+                        if ( $answer->type eq 'CNAME' ) {
+                            if (scalar(
+                                    grep( $_ eq $answer->cname,
+                                        @{ $cnames[$$self] } )
+                                ) == 0
+                                )
+                            {
+                                push( @{ $cnames[$$self] }, $answer->cname );
+                            }
+                        }
+                        else {
+                            if (( $base->validip( $answer->address ) == 1 )
+                                and (
+                                    $base->isinlist( $result[$$self],
+                                        $answer->address ) == 0
+                                )
+                                )
+                            {
+
+                            	print "Found Node! (" . $answer->address . " / " . $answer->name . ") based on a search of: $prefix.$domain.\n";
+                                my $node = Node->new(
+                                    hostname => $answer->name,
+                                    ip       => $answer->address,
+                                    type     => $answer->type,
+                                    ttl      => $answer->ttl,
+                                    from     => 'DNS Prefix BruteForece'
+                                );
+                                push( @{ $result[$$self] }, $node );
+                            }
+                        }
+                    }
+                    $i++;
+                }
+                else {
+                    $i = $max;
+                }
+            }
+
+            # Let others run
+            threads->yield();
+        }
+    }
+}
+
+1;

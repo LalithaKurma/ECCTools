@@ -1,0 +1,38 @@
+    <!--  ARIN -->
+    <arin query="[% query %]" starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH i IN net_handle_result %]
+        <net_handle iprange="[% i.net_range %]" nethandle="[% i.net_handle %]">
+                <cust_name>[% i.cust_name %]</cust_name>    
+                <address>[% i.address %]</address>
+                <city>[% i.city %]</city>
+                <state_prov>[% i.state_prov %]</state_prov>
+                <zip_code>[% i.zip_code %]</zip_code>
+                <country>[% i.country %]</country>
+                <cidr>[% i.cidr %]</cidr>
+                <net_type>[% i.net_type %]</net_type>
+                <comment>[% i.comment %]</comment>
+                <reg_date>[% i.reg_date %]</reg_date>
+                <updated>[% i.updated %]</updated>
+        
+                <rtech_handle>[% i.rtech_handle %]</rtech_handle>
+                <rtech_name>[% i.rtech_name %]</rtech_name>
+                <rtech_phone>[% i.rtech_phone %]</rtech_phone>
+                <rtech_email>[% i.rtech_email %]</rtech_email>
+
+                <org_abuse_handle>[% i.org_abuse_handle %]</org_abuse_handle>
+                <org_abuse_name>[% i.org_abuse_name %]</org_abuse_name>
+                <org_abuse_phone>[% i.org_abuse_phone %]</org_abuse_phone>
+                <org_abuse_email>[% i.org_abuse_email %]</org_abuse_email>
+
+                <org_noc_handle>[% i.org_noc_handle %]</org_noc_handle>
+                <org_noc_name>[% i.org_noc_name %]</org_noc_name>
+                <org_noc_phone>[% i.org_noc_phone %]</org_noc_phone>
+                <org_noc_email>[% i.org_noc_email %]</org_noc_email>
+
+                <org_tech_handle>[% i.org_tech_handle %]</org_tech_handle>
+                <org_tech_name>[% i.org_tech_name %]</org_tech_name>
+                <org_tech_phone>[% i.org_tech_phone %]</org_tech_phone>
+                <org_tech_email>[% i.org_tech_email %]</org_tech_email>
+            </net_handle>
+    [% END %]
+    </arin>

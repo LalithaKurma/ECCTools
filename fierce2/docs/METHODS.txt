@@ -1,0 +1,271 @@
+-------------------------------------------------------------------------------
+                            Techniques
+-------------------------------------------------------------------------------
+         
+Fierce uses several techniques to identify potential targets for a penetration
+assessment. All of the techniques used by Fierce are passive in nature.
+Therefore, there should not any negative impact of running Fierce, since the
+majority of the techniques include DNS requests and ARIN lookups.
+
+== Enumerate the name-servers ==
+
+When Fierce starts a scan against a domain, it first resolves the domain to an
+IP addresses. It then continues to identify the primary, secondary and
+additional name-servers. The requests is known as an 'ns' request which stands
+for name-servers. Once Fierce identifies the name-servers for the Domain, it will
+uses these severs for all DNS requests since these servers may contain
+additional information about the domain being targeted. 
+
+Most UNIX systems have a tool called dig which can be used to make 'ns'
+requests. For example: 
+
+    dig @ns-server domain.com ns
+
+This will perform an 'ns' request against the server 'ns-server' for
+domain.com. This will return all the name-servers for domain.com.
+
+== ARIN ==
+
+One of the new features in Fierce v2.0 is the ARIN module. The way this is used
+is that Fierce v2.0 will perform a ARIN lookup of the domain first. The result
+of this query contains several net-handles. Each of these are then quarried to
+gather more details about the ranges that are owned by the domain being tested.
+
+    fierce -dns google.com
+
+    ....snip...
+
+    ARIN lookup "google":
+    NetRange            173.194.248.0 - 173.194.255.255 
+    NetHandle           NET-173-194-248-0-1
+        CustName        
+        Address         1600 Amphitheatre Parkway
+        City            Mountain View
+        State/Providence    CA
+        Zip Code        94043       
+        Country         US      
+        CIDR            173.194.248.0/21        
+        NetType         Reallocated     
+        Comment         The IP addresses are in use by Google Apps Services     
+        RegDate         2010-06-03      
+        Updated         2010-06-03      
+            
+        RTechHandle     GOOGL-ARIN
+        RTechPhone      Google Apps 
+        RTechPhone      +1-650-253-0000
+        RTechEmail      apps-arin-contact@google.com    
+     
+        OrgAbuseHandle      GOOGL-ARIN
+        OrgAbusePhone       Google Apps 
+        OrgAbusePhone       +1-650-253-0000
+        OrgAbuseEmail       apps-arin-contact@google.com    
+
+        OrgNOCHandle        GOOGL-ARIN
+        OrgNOCPhone     Google Apps 
+        OrgNOCPhone     +1-650-253-0000
+        OrgNOCEmail     apps-arin-contact@google.com    
+        
+        OrgTechHandle       ZG39-ARIN
+        OrgTechPhone        Google Inc. 
+        OrgTechPhone        +1-650-318-0200
+        OrgTechEmail        arin-contact@google.com
+
+    NetRange            216.239.32.0 - 216.239.63.255 
+    NetHandle           NET-216-239-32-0-1
+        CustName        
+        Address         1600 Amphitheatre Parkway
+        City            Mountain View
+        State/Providence    CA
+        Zip Code        94043       
+        Country         US      
+        CIDR            216.239.32.0/19         
+        NetType         Direct Allocation       
+        Comment                 
+        RegDate         2000-11-22      
+        Updated         2001-05-11      
+            
+        RTechHandle     ZG39-ARIN
+        RTechPhone      Google Inc. 
+        RTechPhone      +1-650-318-0200
+        RTechEmail      arin-contact@google.com    
+
+    (continue for each net-handle)
+    ...snip...
+    
+== Zone Transfer ==
+
+Fierce leverages a classic passive recon technique to identify information from
+the name-servers for a given Domain. It will attempt a 'axfr' request against
+each name-server. Even if one of the requests is successful, Fierce will
+continue to perform the 'axfr' request against all name-servers. Based on our
+testing, we have found several customers that have exposed internal RFC 1918 ip
+addresses with the zone files. If an attacker is able to query the name-server
+and extract this information they are able to determine hosts to target once
+they gain internal access. There is usually no business reason for an
+organization to have Zone Transfers enabled. Therefore, we highly recommend
+that it be disabled for all name-servers. 
+
+Most UNIX systems have a tool called dig which can be used to make 'axfr'
+requests. For example: 
+
+    dig @ns-server domain.com axfr
+
+This will perform an 'axfr' request against the server 'ns-server' for
+domain.com.
+
+== WildCard ==
+
+The next technique that Fierce uses to identify IP addresses for domain.com is
+that it checks for WildCards. Checking for WildCards is an important step,
+because if the organization has a WildCard inplace this will effect the
+rest of the testing.  For example, some organizations configure there DNS
+servers to resolve: ANYTHING-YOU-TYPE.domain.com to a specific DIP
+addresses. If this is the case, the penetration tester needs to remember
+that any host names that resolve to this IP address are likely due to the
+WildCard being inplace and not because the hostname is valid. A good
+penetration tester will take this into account when performing Network
+Recon, and customize their testing in order to identify additional
+targets and prevent false positives.
+
+== Prefix Bruteforce ==
+
+Prefix Bruteforcing is a technique that is used to locate hostnames that
+resolve to an IP address. Fierce leverages an advanced version of prefix
+bruteforcing, in addition to attempting to resolve common prefixes like (www,
+mail and test).domain.com, Fierce will attempt to append digits 1 through 5 to
+the end of each prefix to identify if any additional systems are associated
+with this prefix. If the prefix or the prefix with a '1' appended to the end
+resolves to an IP address, Fierce will attempt 2 through 5. The largest digit
+is configurable using:
+
+    ./fierce -dns domain.com -maxbruteforce [int]
+
+== Subdomain Bruteforcing ==
+
+New in Fierce v2.0 is the ability to bruteforce subdomains. Though similar to
+prefix bruteforcing, this technique involves testing subdomains for each found
+domain.
+
+For example:
+    www.mail.yahoo.com 
+    www.mail2.yahoo.com
+    www.mail3.yahoo.com
+    etc...
+
+The method uses a wordlist of subdomains. In addition to the supplied wordlist,
+Fierce will also attempt to add an integer to the end of each subdomain.  You
+can supply your own wordlist using the "-subdomain [file|URL]" syntax.
+
+== TLD Bruteforcing ==
+
+New in Fierce v2.0 is the ability to bruteforce alternate domain TLDs - that
+is, top level domains such as .com, .net or .org. Many organizations will
+register all of these domains, and use all them differently for operational
+reasons.
+
+Fierce creates a list of TLDs and attempts to resolve the IP address for each
+of the resulting hostnames. This technique is not enabled by default, as it is
+usually only useful for large international organizations.
+
+This technique also has an interactive interface which allows for domains to be
+added to the current scan.
+
+     ./fierce -dns google.com -only tldbf
+    (...snip..)
+    TLD Bruteforce:
+    Would you like to add domains found using TLD Bruteforce: [Y|N|A=Add all|S=Skip all]
+    y
+    Would you like to scan google.edu ? [Y|N|S=Skip all] 
+    n
+    Would you like to scan google.net ? [Y|N|S=Skip all] 
+    n
+    Would you like to scan google.org ? [Y|N|S=Skip all] 
+    y
+    Would you like to scan google.xxx ? [Y|N|S=Skip all] 
+    n
+    Would you like to scan google.co.uk ? [Y|N|S=Skip all] 
+    n
+    Would you like to scan google.de ? [Y|N|S=Skip all] 
+    S
+        66.249.81.104    google.com
+        208.68.139.38    google.edu
+        74.125.95.99     google.net
+        (...snip...)
+    Ending domain scan at Wed Jun 16 23:48:43 2010
+    Elapsed time 54 seconds
+    Scanning domain google.org at Wed Jun 16 23:49:37 2010 ...
+
+    google.org - 64.233.169.104
+
+    Nameservers for google.org:
+        ns3.google.com   216.239.36.10    
+        ns1.google.com   216.239.32.10    
+        ns4.google.com   216.239.38.10    
+        ns2.google.com   216.239.34.10    
+    TLD Bruteforce:
+    (..snip..)
+
+== Virtual Hosts ==
+
+Fierce has the ability to identify alternate hostnames for the IP addresses
+that have been found. Fierce does this by querying msn.com using: the
+"ip:x.x.x.x" syntax.
+
+This technique can be useful for locating alternate applications or websites
+hosted on the same server, which may provide attack surface. This technique
+increases the likelihood of inconsistent results and false positives. Fierce
+tries to remove Microsoft hostnames from the result. Virtual Host testing is
+off by default.
+
+== MX Records ==
+
+Fierce v2.0 enumerates all MX records for a domain. This is done using the
+standard DNS query.
+    
+    dig domain.com MX
+
+== Whois Lookup ==
+
+Fierce v2.0 has the ability to perform a whois lookups. As part of the default
+scan, Fierce v2.0 will perform a whois lookup against the IP address of the
+domain.
+
+== Hostname Lookups ==
+
+Fierce v2.0 has the ability to perform forward lookups for all the hostnames
+that it has identified. It will perform 10 lookups per hostname found durin
+prefix bruteforcing. The number of lookups is configurable.
+
+    ./fierce -dns domain.com -maxlookups [int]
+
+
+== Find Nearby IPs / IP Lookups ==
+
+The last techniques that is used by Fierce v2.0 is to identify systems may be
+controlled by the same domain, by performing IP lookups of the addresses within
+the class C blocks that have already been found. The best method to improve the
+results is to use -wide when performing a scan.
+
+    ./fierce -dns domain.com -wide
+
+Using -wide will make Fierce v2.0 perform lookups for every IP that has
+already been found within the Class C network. If the hostname's IP matches the
+target domain, it is added to the list of hosts. If the domain does not match,
+Fierce will prompt the user to determine whether they would like to enumerate
+the new domain.
+
+Example:
+
+    ...snip...
+    
+    Nearby IPs:
+    Would you like to add domains found using Nearby IPs: [Y|N]
+    y
+    Would you like to scan bar.com ? [Y|N]
+    y
+    Would you like to scan foo.com ? [Y|N]
+    n
+
+    ...snip...
+
+    Once this scan completes, Fierce v2.0 will perform a full scan of bar.com.

@@ -1,0 +1,5 @@
+    <!--  Vhosts -->
+    <vhost starttime="[% start %]" starttimestr="[% startstr %]" endtime="[% end %]" endtimestr="[% endstr %]" elapsedtime="[% elapsed %]">
+    [% FOREACH node IN result %]
+           <node ip="[% node.ip %]" hostname="[% node.hostname %]"/>
+    [% END %]</vhost>

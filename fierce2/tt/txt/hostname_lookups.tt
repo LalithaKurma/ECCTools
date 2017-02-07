@@ -1,0 +1,4 @@
+[% FOREACH node IN result %]
+    [% node.hostname %] [% "\t\t" %] [% node.ip %]
+
+[% END %]

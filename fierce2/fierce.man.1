@@ -1,0 +1,367 @@
+#!/usr/bin/perl
+#
+# pod2man fierce.man.1 | gzip -c > fierce.1p.gz && gunzip fierce.1p.gz
+#
+# Copyright (C) 2008-2011
+#                       RSnake < h@ckers.org > 
+#                       Joshua D. Abraham < jabra@spl0it.org >
+#
+# This manpage is released under the terms of the BSD, which is distributed
+# with this software in the file "COPYING". 
+#
+
+=pod
+
+=begin man
+
+=head1 NAME
+ 
+ Fierce - the ultimate network reconnaissance tool
+
+=head1 SYNOPSIS
+
+ fierce [Options] {target specification}
+
+=cut
+
+=begin man
+
+=head1 DESCRIPTION
+
+Fierce is a semi-lightweight enumeration scanner that helps penetration testers
+locate non-contiguous IP space and hostnames for a specified domains using
+things like DNS, Whois and ARIN.  It's really meant as a pre-cursor to active
+testing tools via something like: nmap, unicornscan, nessus, nikto, etc, since
+all of those require that you already know what IP space you are looking for.
+Fierce does not perform exploitation and does not scan the whole internet
+indiscriminately. It is meant specifically to locate likely targets both inside
+and outside a corporate network. Since it uses DNS primarily you will often
+find mis-configured networks that leak internal address space.
+
+=head1 OPTIONS 
+
+TARGET OPTIONS:
+  -dns [dns name(s) or file]   The domain(s) you would like scanned.
+                               Single domain, Multiple domains (Comma seperated)
+                               Also, supports file input (one domain per line) 
+  -range [111.222.333.1-100]   Scan an internal IP range (must be combined with 
+                               -dnsservers).  Note, that this does not support a pattern
+                               and will simply output anything it finds. 
+                               Singe range, Multiple ranges (Comma separated)
+                               Also, supports file input (one range per line)
+
+GENERAL OPTIONS: 
+  -format [type]               Output format [txt || xml || html || all] 
+  -output [file]               Output file
+  -template [dir]              Template Directory
+  -arin ["query"]              ARIN Query (default uses domain, without extension)
+  -prefix [prefix file|URL]    Prefix file or URL for bruteforce attack
+  -maxbruteforce [int]         Max number concatted onto prefix (default 5)
+  -maxlookups [int]            Max number hostname lookups (default 10)
+  -tld [file|URL]              TLD file or URL for bruteforce
+  -subdomain [file|URL]        Subdomain file or URL for subdomains bruteforce
+  -dnsservers [dns server or file]     
+                               Use particular DNS server(s) for hostname lookups.
+                               (Single domain, Multiple domains (Comma seperated)
+                               or File list(one domain per line) )
+  -ztstop                      Stop scan if Zone Transfer works
+  -wildcstop                   Don't perform bruteforcing if a Wildcard is found                
+  -all                         Perform every test.
+  -only   [option(s)]          Only perform (comma seperated)
+  -no     [option(s)]          Do not perform (comma seperated)
+          arin                    ARIN lookup
+          zt                      Zone Transfer
+          wildc                   Check for Wild Card
+          prebf                   Prefix Brute Force
+          subbf                   Subdomain Brute Force (default off)
+          tldbf                   TLD Brute Force (default off)
+          vhost                   Vhost Hosts (default off)
+          findmx                  Find MX Records
+          whois                   Whois Lookup
+          hlookups                Hostname Lookups
+          nearby                  Find Nearby Hosts
+  -threads [int]               Number of threads (default 5 threads)
+  -port [int]                  Port to use for testing
+  -delay [int]                 Number of seconds to delay (default 3 secs)
+  -proto [udp|tcp]             Protocol to use for DNS requests (default udp)
+  -tcptimeout [int]            Specify a different TCP timeout (default 10 secs)  
+  -udptimeout [int]            Specify a different UDP timeout (default 5 secs)  
+  -search [comma seperated]    Search list based on the PTR names when performing lookups.
+  -traverse [int]              Number of IPs to search at once betwen 0 and 255 (default 10)
+  -wide                        Scan the entire class C after finding any matching
+                               hostnames in that class C.  
+      -debug                   Debug option 
+  -v  -verbose                 Verbose option 
+  -h  -help                    This help screen.
+      -version                 Output the version number.
+
+
+
+ EXAMPLES:
+   perl fierce -dns example.com -prefix hosts.txt    
+   perl fierce -dns example.com -prefix http://mywebsite.com/prefix.txt -wide
+
+ 
+  Type 'man fierce' for more information
+ 
+=end man
+
+=cut
+
+
+__END__
+
+=begin man
+
+=head1 TARGET OPTIONS
+
+=head2 -dns [dns name(s) or file]   
+
+ The domain(s) you would like scanned.
+ Single domain or Multiple domains (Comma seperated)
+ Also, supports file input (one domain per line). 
+
+ Examples: 
+
+ perl fierce -dns google.com
+    
+ perl fierce -dns google.com,yahoo.com,microsoft.com
+
+ perl fierce -dns targets.txt
+
+=head2    -range        
+        
+ Scan an internal IP range (must be combined with 
+ -dnsservers).  Note, that this does not support a pattern
+ and will simply output anything it finds.  
+ 
+ Single range or Multiple ranges (Comma seperated)
+ Also, supports file input (one range per line).
+
+ Usage: perl fierce -range 111.222.333.0-255 -dnsservers ns1.example.com
+
+=head1 OPTION DETAILS
+
+=head2    -format [type]
+
+ Output format types. This can be one of the following: txt, xml or html.
+
+=head2    -output [file]      
+    
+ The file you would like the output to be logged to.
+
+=head2    -template [dir]      
+    
+ The location of the fierce v2 template directory. By default fierce v2 will
+ look in the current directory in addition to ~/.fierce2 on unix for the 
+ template directory which is named tt/.
+
+=head2    -arin [query]      
+    
+ A unique ARIN query to use for enumeration. By default fierce v2 will use the
+ domain without any extension based. It is sometimes useful to use this option
+ when you have a customer whose domain is different from the domain.
+
+=head2  -prefix [prefix file|URL] 
+
+ Prefix list for bruteforce attack. A URL will work too.
+
+ Use a seperate wordlist (one word per line).  
+ 
+ Usage: 
+
+ perl fierce.pl -dns examplecompany.com -prefix dictionary.txt
+ 
+ perl fierce.pl -dns examplecompany.com -prefix http://www.server.com/dictionary.txt
+
+ The default list includes the following prefixes:
+
+ imap, www, mail, files, file, ftp, dns, smtp, ns, mx, dev, devel, svn, cvs, test, vpn,  unix, webmail
+ 
+=head2  -maxbruteforce [int] 
+
+ When performing the prefix bruteforce attack, Fierce v2 will append integers
+ onto the end of the prefix. This provides a new technique for detecting hosts
+ for a domain. For example if www.domain.com or www1.domain.com can be found
+ then fierce will attempt www2.domain.com, www3.domain.com, www4.domain.com and
+ www5.domain.com. The maxbruteforce will be the max number to append onto the
+ prefix.
+
+=head2  -maxlookups [int] 
+
+ When performing reverse lookups, Fierce v2 will attept to perform several
+ reverse lookups to determine if the hostname has multiple IPs associated with
+ it. By default, Fierce will attempt 10 reverse lookups.
+
+=head2  -ext [ext file|URL] 
+
+ Extension list for extension bruteforce attack. A URL will work too.
+
+ Use a seperate wordlist (one word per line).  
+ 
+ Usage: 
+
+ perl fierce.pl -dns examplecompany.com -ext extdict.txt
+ 
+ perl fierce.pl -dns examplecompany.com -ext http://www.server.com/extdict.txt
+
+ Default list includes the following extensions:
+
+ com, edu, net, org, co.uk, au, de, xxx, info, tv, biz, cc, cn, name, pro, us, la, com.au
+
+=head2  -subdomain [subdomain file|URL] 
+
+ Subdomain list for subdomain bruteforce attack. A URL will work too.
+
+ Use a seperate wordlist (one word per line).  
+ 
+ Usage: 
+
+ perl fierce.pl -dns examplecompany.com -subdomain dictionary.txt
+ 
+ perl fierce.pl -dns examplecompany.com -subdomain http://www.server.com/dictionary.txt
+
+=head2    -dnsservers [dns server or file]    
+
+ Use a particular DNS server for reverse lookups 
+ (probably should be the DNS server of the target).  Fierce
+ uses your DNS server for the initial SOA query and then uses
+ the target's DNS server for all additional queries by default.
+
+ (Single domain, Multiple domains (Comma seperated)
+ or File list(one domain per line) )
+
+=head2    -ztstop    
+    
+ Stop scan if a Zone Transfer works on any Name Server.
+
+=head2    -wildcstop    
+    
+ Do not perform prefix or subdomain bruteforcing if a wildcard is found.
+
+=head2    -all   
+    
+ Perform all of the Fierce v2 techniques for network enumeration. 
+ 
+ NOTE: This option can not be used with -no or -only.
+
+=head2    (-only | -no)  [technique(s)] (comma seperated)
+
+ Fierce v2 includes several techniques including the following:
+
+           arin                    ARIN lookup
+           zt                      Zone Transfer
+           prebf                   Prefix Brute Force
+           subbf                   Subdomain Brute Force
+           extbf                   Extension Brute Force 
+           findmx                  Find MX Records
+           wildc                   Check for Wild Card
+           revlook                 Reverse Lookups
+           vhost                   Vhost Hosts 
+           whois                   Whois Lookup
+           nearby                  Find Nearby Hosts
+
+ -no will prevent a specific technique from being performed.
+ 
+ -only will only execute specific techniques.
+
+ NOTE: Both -no and -only can not be used together or with -all.
+
+=head2    -threads [int]
+    
+ Specify how many threads to use while scanning (default
+ is single threaded).
+
+=head2    -port [int]
+ 
+ DNS port used for testing. Default is 53.
+
+=head2    -delay [int]     
+        
+ The number of seconds to wait between lookups. Default is 3.
+
+=head2    -proto [udp|tcp]
+ 
+ The protocol to use for DNS requests. Default is UDP.
+
+=head2    -tcptimeout [int]    
+
+ Specify a different timeout (default 10 seconds).  You
+ may want to increase this if the DNS server you are querying
+ is slow or has a lot of network lag.
+
+=head2    -udptimeout [int]    
+
+ Specify a different timeout (default 5 seconds).  You
+ may want to increase this if the DNS server you are querying
+ is slow or has a lot of network lag.
+
+=head2    -search [search list]
+
+ Search list.  When fierce attempts to traverse up and
+ down ipspace it may encounter other servers within other
+ domains that may belong to the same company.  If you supply a 
+ comma delimited list to fierce it will report anything found.
+ This is especially useful if the corporate servers are named
+ different from the public facing website.  
+ 
+ Usage: perl fierce.pl -dns examplecompany.com -search corpcompany,blahcompany 
+
+ Note that using search could also greatly expand the number of
+ hosts found, as it will continue to traverse once it locates
+ servers that you specified in your search list.  The more the
+ better.
+
+=head2    -traverse [int]
+    
+ Specify a number of IPs above and below whatever IP you
+ have found to look for nearby IPs.  Default is 5 above and 
+ below.  Traverse will not move into other C blocks.
+
+=head2    -wide
+
+ Scan the entire class C after finding any matching
+ hostnames in that class C.  This generates a lot more traffic
+ but can uncover a lot more information.
+
+ This option will provide the best results for a penetration assessment.
+
+=head2    -help    
+
+ Output the help information.
+
+=head2    -version    
+
+ Output the version number.
+
+=head1 FEATURE REQUESTS or BUG REPORTS
+ 
+ These should be submitted using :
+ 
+ http://trac.assembla.com/fierce/newticket
+
+ For Bug Reports, please include the version of Fierce and a detailed
+ description of the issue
+
+ For Feature Requests, please include a detailed description of the feature and
+ why this would be a useful addtion to Fierce.
+
+=head1 SEE ALSO
+
+ nmap(1), unicornscan(1)
+
+=head1 AUTHORS
+
+ Joshua "Jabra" Abraham < jabra@spl0it.org >
+ RSnake < h@ckers.org >
+
+=head1 LEGAL NOTICES
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+ the COPYING file included with Fierce.
+
+ Please use Fierce with care and at your own risk.
+
+=end man

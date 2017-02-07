@@ -1,0 +1,96 @@
+use threads;
+use threads::shared;
+
+# $Id$
+package tTLDBruteForce;
+{
+    use Object::InsideOut qw(:SHARED AttackObj);
+    use Fierce::Base;
+    use Socket;
+    use Thread::Queue;
+
+    ### required parameters
+    my @extension_list : Field : Arg(extension_list) : Get(extension_list) :
+        Type(Array) :
+        Default( ['com','net','org','biz','name','co.uk', 'de','aero','coop', 'info','pro','xn--kgbechtv', 'xn--hgbk6aj7f53bba', 'xn--0zwm56d', 'xn--g6w251d', 'xn--80akhbyknj4f', 'xn--11b5bs3a9aj6g', 'xn--jxalpdlp', 'xn--9t4b11yi5a', 'xn--deba0ad', 'xn--zckzah','xn--hlcj6aya9esc7a','cs','cz','sk','dd','zr','su','ru']);
+
+    ### optional parameters
+    # Base configuration information
+    my @base : Field : Arg(base) : Get(base) : Type(Base);
+
+    ### populated parameters
+    # list of nodes found
+    my @result : Field : Arg(result) : All(result) : Type(List(Node)) :
+        Default([]);
+
+    # domain object from execute
+    my @domain_obj : Field : Arg(domain_obj) : All(domain_obj) : Type(Domain);
+
+    # initialize the base obj
+    sub _init : Init {
+        my ($self) = @_;
+
+        # Set default if needed
+        if ( !exists( $base[$$self] ) ) {
+            $self->set( \@base, Base->new() );
+        }
+    }
+
+    # execute: Domain -> tTLDBruteForce
+    # perform extension dns bruteforce with extension list
+    # side effect: adds the list of found nodes to result
+    sub execute {
+        my ( $self, $domain_obj ) = @_;
+
+        $self->_setup;
+        $self->domain_obj($domain_obj);
+
+        my $stream = Thread::Queue->new();
+
+        foreach my $ext ( @{ $self->extension_list } ) {
+            $stream->enqueue($ext);
+        }
+        my $base = $self->base;
+        foreach ( 1 .. $base->threads ) {
+            threads->new( \&thr_work, $self, $stream );
+            $stream->enqueue(undef);    # for each thread
+        }
+        foreach my $thr ( threads->list() ) {
+            $thr->join();
+        }
+        $self->_complete;
+        return $self;
+    }
+
+    sub thr_work {
+        my ( $self, $q ) = @_;
+
+        my $domain = $self->domain_obj->domain;
+        my $base   = $base[$$self];
+        $domain =~ s/\.\w+$//g;
+
+        #print( 'Thread = ', threads->tid(), "\n" );
+        sleep( $base->delay() );
+        my $res = $base->new_dns_resolver();
+        while ( my $ext = $q->dequeue() ) {
+        	print "Searching for $domain.$ext.\n" if $base->verbose == 1;
+            my $answer = $base->lookup_hostname( $res, "$domain.$ext." );
+            if ( defined $answer ) {
+            	print "Found Node! (" . $answer->address . " / " . $answer->name . ") based on a search of: $domain.$ext.\n";
+                my $node = Node->new(
+                    hostname => $answer->name,
+                    ip       => $answer->address,
+                    type     => $answer->type,
+                    ttl      => $answer->ttl,
+                    from     => 'DNS TLD BruteForece'
+                );
+                push( @{ $result[$$self] }, $node );
+            }
+
+            # Let others run
+            threads->yield();
+        }
+    }
+}
+
+1;

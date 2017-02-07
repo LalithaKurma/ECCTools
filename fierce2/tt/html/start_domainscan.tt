@@ -1,0 +1,3 @@
+<h3>Domain Scan:    [% FILTER html %][% domain %][% END %] - [% FILTER html %][% ip %][% END %]</h3>
+<p>Scan Start Time: [% FILTER html %][% startstr %][% END %]<p>
+<p></p>

@@ -1,0 +1,3 @@
+<p>Scan End Time:     [% FILTER html %][% endstr %][% END %]</p>
+<p>Scan Elapsed Time: [% FILTER html %][% elapsed %][% END %]</p>
+<p></p>

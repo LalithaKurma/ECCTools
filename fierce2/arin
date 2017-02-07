@@ -1,0 +1,12 @@
+#!/usr/bin/perl
+use Net::Whois::ARIN;
+my $w = Net::Whois::ARIN->new(
+            host    => 'whois.arin.net',
+            port    => 43,
+            timeout => 30,
+        );
+
+my @out = $w->query($ARGV[0]);
+foreach(@out){
+    print "$_\n";
+}

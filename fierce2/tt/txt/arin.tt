@@ -1,0 +1,65 @@
+[% FOREACH i IN net_handle_result %]
+	NetRange[% "\t\t\t" %][% i.net_range %]
+
+	NetHandle[% "\t\t\t" %][% i.net_handle %]
+
+		CustName[% "\t\t" %][% i.cust_name %]
+
+		Address[% "\t\t\t" %][% i.address %]
+
+		City[% "\t\t\t" %][% i.city %]   
+
+		State/Providence[% "\t" %][% i.state_prov %]
+
+		Zip Code[% "\t\t" %][% i.zip_code %]
+		
+		Country[% "\t\t\t" %][% i.country %]
+		
+		CIDR[% "\t\t\t" %][% i.cidr %]
+		
+		NetType[% "\t\t\t" %][% i.net_type %]
+		
+		Comment[% "\t\t\t" %][% i.comment %]
+		
+		RegDate[% "\t\t\t" %][% i.reg_date %]
+		
+		Updated[% "\t\t\t" %][% i.updated %]
+		
+			
+		RTechHandle[% "\t\t" %][% i.rtech_handle %]
+
+		RTechPhone[% "\t\t" %][% i.rtech_name %]
+
+		RTechPhone[% "\t\t" %][% i.rtech_phone %]
+
+		RTechEmail[% "\t\t" %][% i.rtech_email %]
+   
+	 
+		OrgAbuseHandle[% "\t\t" %][% i.org_abuse_handle %]
+
+		OrgAbusePhone[% "\t\t" %][% i.org_abuse_name %]
+
+		OrgAbusePhone[% "\t\t" %][% i.org_abuse_phone %]
+
+		OrgAbuseEmail[% "\t\t" %][% i.org_abuse_email %]
+	
+
+		OrgNOCHandle[% "\t\t" %][% i.org_noc_handle %]
+
+		OrgNOCPhone[% "\t\t" %][% i.org_noc_name %]
+
+		OrgNOCPhone[% "\t\t" %][% i.org_noc_phone %]
+
+		OrgNOCEmail[% "\t\t" %][% i.org_noc_email %]
+	
+		
+		OrgTechHandle[% "\t\t" %][% i.org_tech_handle %]
+
+		OrgTechPhone[% "\t\t" %][% i.org_tech_name %]
+
+		OrgTechPhone[% "\t\t" %][% i.org_tech_phone %]
+
+		OrgTechEmail[% "\t\t" %][% i.org_tech_email %]
+
+
+[% END %]
